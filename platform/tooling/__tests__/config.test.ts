@@ -325,4 +325,33 @@ describe('platform installation config', () => {
     });
     expect(config.games.example.deployment.kind).toBe('external');
   });
+
+  it('allows HTTP only for loopback control and authorization endpoints', () => {
+    const deployment = {
+      kind: 'external',
+      controlEndpoint: 'http://127.0.0.1:3310',
+      authorizationEndpoint: 'http://[::1]:3312',
+      playerEndpoint: 'https://example.test/player',
+      serviceCredentialRef: 'env:GAME_SERVICE_CREDENTIAL',
+    };
+    const configFor = (override: Partial<typeof deployment> = {}) => ({
+      ...rawConfig(),
+      games: {
+        example: {
+          ...rawConfig().games.example,
+          deployment: { ...deployment, ...override },
+        },
+      },
+    });
+    expect(() => parsePlatformConfig(configFor())).not.toThrow();
+    for (const override of [
+      { controlEndpoint: 'http://example.test/control' },
+      { authorizationEndpoint: 'http://192.168.1.1/auth' },
+      { controlEndpoint: 'http://user:password@127.0.0.1:3310' },
+      { controlEndpoint: 'http://127.0.0.1:3310?token=secret' },
+      { playerEndpoint: 'http://127.0.0.1:3311' },
+    ]) {
+      expect(() => parsePlatformConfig(configFor(override))).toThrow();
+    }
+  });
 });

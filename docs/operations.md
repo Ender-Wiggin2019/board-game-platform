@@ -57,6 +57,12 @@ host, registry, credential, or deployment URL.
 - `/api/*` is the authenticated platform API.
 - TLS and public DNS belong at the configured edge proxy.
 
+External deployment configuration requires HTTPS for the browser player
+endpoint. Control and authorization endpoints may use HTTP on literal loopback
+addresses (`127.0.0.1` or `[::1]`) for separate processes on the same host.
+The platform runtime still requires `PLATFORM_ALLOW_INSECURE_LOCALHOST=true`
+to connect to them; non-loopback HTTP is rejected.
+
 Game session routes must be selected from the persisted release/channel
 registry. A browser must not choose an arbitrary backend URL or release. A
 session keeps its recorded route and release for its lifetime, including during

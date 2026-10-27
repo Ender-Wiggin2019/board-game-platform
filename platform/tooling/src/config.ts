@@ -194,7 +194,11 @@ function relativePathValue(value: unknown, label: string): string {
   return result;
 }
 
-function httpsEndpoint(value: unknown, label: string): string {
+function httpsEndpoint(
+  value: unknown,
+  label: string,
+  allowLoopbackControl = false,
+): string {
   const result = stringValue(value, label);
   let url: URL;
   try {
@@ -203,7 +207,12 @@ function httpsEndpoint(value: unknown, label: string): string {
     throw new Error(`${label} must be an HTTPS endpoint`);
   }
   if (
-    url.protocol !== 'https:' ||
+    (url.protocol !== 'https:' &&
+      !(
+        allowLoopbackControl &&
+        url.protocol === 'http:' &&
+        ['127.0.0.1', '[::1]'].includes(url.hostname)
+      )) ||
     url.username ||
     url.password ||
     url.search ||
@@ -338,6 +347,7 @@ function parseDeployment(
       controlEndpoint: httpsEndpoint(
         candidate.controlEndpoint,
         `${label}.controlEndpoint`,
+        true,
       ),
       playerEndpoint: httpsEndpoint(
         candidate.playerEndpoint,
@@ -349,6 +359,7 @@ function parseDeployment(
             authorizationEndpoint: httpsEndpoint(
               candidate.authorizationEndpoint,
               `${label}.authorizationEndpoint`,
+              true,
             ),
           }),
       serviceCredentialRef: secretRef(
