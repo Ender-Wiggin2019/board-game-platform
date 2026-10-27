@@ -1,4 +1,4 @@
-import { resolve } from 'node:path';
+import { isAbsolute, resolve } from 'node:path';
 import type { TrustedSourceIdentity } from '@board-game/core';
 import {
   type PlatformInstallation,
@@ -13,6 +13,8 @@ export interface StandalonePlatformConfig {
   readonly configPath: string;
   readonly lockPath: string;
   readonly workspaceRoot: string;
+  /** Explicit local root for opaque secrets/<id> service credential refs. */
+  readonly serviceCredentialDirectory?: string;
   readonly allowInsecureLocalhost: boolean;
   /** Explicit platform signing key used only to mint short-lived player tokens. */
   readonly playerCredentialPrivateKey?: string;
@@ -70,6 +72,14 @@ function optionalString(
 ): string | undefined {
   const value = env[name]?.trim();
   return value ? value : undefined;
+}
+
+function optionalAbsoluteDirectory(env: NodeJS.ProcessEnv): string | undefined {
+  const value = optionalString(env, 'PLATFORM_SERVICE_CREDENTIALS_DIR');
+  if (value === undefined) return undefined;
+  if (!isAbsolute(value))
+    throw new Error('PLATFORM_SERVICE_CREDENTIALS_DIR must be absolute');
+  return value;
 }
 
 function optionalPort(
@@ -260,6 +270,7 @@ export async function loadStandaloneConfig(
   const factIngressToken = optionalString(env, 'PLATFORM_FACT_INGRESS_TOKEN');
   const factIngressSource = optionalFactSource(env);
   const factIngressCredentials = optionalFactCredentials(env);
+  const serviceCredentialDirectory = optionalAbsoluteDirectory(env);
   const playerCredentialTtlMs = optionalTtl(env);
   const playerApprovedGameScopes = optionalScopes(env);
   const factIngressHost = optionalString(env, 'PLATFORM_FACT_INGRESS_HOST');
@@ -297,6 +308,9 @@ export async function loadStandaloneConfig(
     configPath,
     lockPath,
     workspaceRoot,
+    ...(serviceCredentialDirectory === undefined
+      ? {}
+      : { serviceCredentialDirectory }),
     allowInsecureLocalhost: booleanEnv(
       env,
       'PLATFORM_ALLOW_INSECURE_LOCALHOST',

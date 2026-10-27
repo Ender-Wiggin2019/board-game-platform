@@ -77,6 +77,21 @@ fixtures, logs, or release artifacts. Readiness for a remote binding requires a
 server-owned probe and an approved immutable description; a client assertion is
 not evidence.
 
+For a standalone platform that must accept new external bindings without a
+process restart, set `PLATFORM_SERVICE_CREDENTIALS_DIR` to an explicit
+absolute, server-local directory. In a binding, use either the existing
+`env:NAME` reference or one opaque single-segment `secrets/<id>` reference.
+The standalone resolver never accepts an absolute path, nested path, or
+`file:` reference; it reads only a regular file directly under that directory,
+rejects symlink targets and group/other-readable files, and never persists or
+returns the token. Rotate a file by writing a restricted temporary file and
+atomically renaming it over the old file. Registry-backed fact-ingress
+credentials are re-read during the existing refresh cycle, so registering a
+new binding and passing its readiness probe does not require restarting the
+platform PID. A file rename alone does not replace the token held by an
+already-created backend adapter for the same binding; use the existing binding
+reload/readiness path for that rotation.
+
 ## PostgreSQL verification
 
 Run the isolated framework gate before a release:

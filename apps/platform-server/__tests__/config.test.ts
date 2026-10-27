@@ -36,6 +36,27 @@ describe('empty standalone platform configuration', () => {
       const config = await loadStandaloneConfig(env, directory);
       expect(config.installation.config.games).toEqual({});
       expect(config.factIngressCredentials).toBeUndefined();
+      expect(config.serviceCredentialDirectory).toBeUndefined();
+      const credentialDirectory = join(directory, 'credentials');
+      const configuredDirectory = await loadStandaloneConfig(
+        {
+          ...env,
+          PLATFORM_SERVICE_CREDENTIALS_DIR: credentialDirectory,
+        },
+        directory,
+      );
+      expect(configuredDirectory.serviceCredentialDirectory).toBe(
+        credentialDirectory,
+      );
+      await expect(
+        loadStandaloneConfig(
+          {
+            ...env,
+            PLATFORM_SERVICE_CREDENTIALS_DIR: 'credentials',
+          },
+          directory,
+        ),
+      ).rejects.toThrow('must be absolute');
       await expect(
         loadStandaloneConfig(
           {

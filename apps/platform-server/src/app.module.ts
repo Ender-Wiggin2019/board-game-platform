@@ -31,6 +31,7 @@ import { PublicConfigurationController } from './public-configuration.controller
 import {
   createStandaloneRemoteRuntime,
   createStandaloneResources,
+  createStandaloneServiceCredentialResolver,
   resolveEnvironmentSecret,
   restoreStandaloneRuntime,
   STANDALONE_FACT_INGRESS,
@@ -54,10 +55,19 @@ export async function createStandalonePlatformModule(
 ): Promise<DynamicModule> {
   const config = await loadStandaloneConfig();
   const resources = createStandaloneResources(config);
+  const resolveServiceCredential =
+    options.resolveServiceCredential ??
+    createStandaloneServiceCredentialResolver(
+      config.serviceCredentialDirectory,
+    );
+  const dependencies: StandalonePlatformDependencies = {
+    ...options,
+    resolveServiceCredential,
+  };
   const remoteRuntime = createStandaloneRemoteRuntime(
     config,
     resources,
-    options,
+    dependencies,
   );
   const playerCredentialPrivateKey = config.playerCredentialPrivateKey;
   const playerCredentialAudience = config.playerCredentialAudience;
@@ -113,10 +123,10 @@ export async function createStandalonePlatformModule(
             authorizationStore,
             resolveAuthorizationSync: async (route) => {
               const binding = await bindingFor(route);
-              const token = await (options.resolveServiceCredential?.(
+              const token = await resolveServiceCredential(
                 binding.serviceCredentialRef,
                 binding,
-              ) ?? resolveEnvironmentSecret(binding.serviceCredentialRef));
+              );
               return new HttpAuthorizationVersionClient({
                 baseUrl:
                   binding.authorizationEndpoint ?? binding.controlEndpoint,
@@ -206,7 +216,7 @@ export async function createStandalonePlatformModule(
           new StandaloneFactIngressLifecycle(
             runtime,
             config,
-            options.resolveServiceCredential,
+            resolveServiceCredential,
           ),
       },
       RestoreService,

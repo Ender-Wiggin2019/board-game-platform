@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { constants as fsConstants } from 'node:fs';
+import { open, realpath } from 'node:fs/promises';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
 import type { BackendPort, SessionRoute } from '@board-game/contracts';
 import type {
   FactDelivery,
@@ -95,6 +98,88 @@ export function resolveEnvironmentSecret(reference: string): string {
   return value;
 }
 
+const LOCAL_SECRET_REFERENCE_PATTERN =
+  /^secrets\/[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
+const MIN_SERVICE_CREDENTIAL_LENGTH = 32;
+
+function credentialResolutionError(reference: string, reason: string): Error {
+  return new Error(`secret reference ${reference} ${reason}`);
+}
+
+function isWithinDirectory(directory: string, candidate: string): boolean {
+  const child = relative(directory, candidate);
+  return (
+    child !== '' &&
+    child !== '..' &&
+    !child.startsWith(`..${sep}`) &&
+    !isAbsolute(child)
+  );
+}
+
+/**
+ * Resolves service credentials from env references or an explicit local
+ * credentials directory. File references are intentionally one opaque,
+ * single-segment id; the directory is never supplied by a release request.
+ * The file is opened on every call so an atomic same-directory rename becomes
+ * visible without restarting the platform process.
+ */
+export function createStandaloneServiceCredentialResolver(
+  directory?: string,
+): NonNullable<StandalonePlatformDependencies['resolveServiceCredential']> {
+  return async (reference) => {
+    if (reference.startsWith('env:'))
+      return resolveEnvironmentSecret(reference);
+    if (!LOCAL_SECRET_REFERENCE_PATTERN.test(reference))
+      throw credentialResolutionError(reference, 'is unsupported');
+    if (!directory)
+      throw credentialResolutionError(reference, 'has no configured directory');
+
+    const id = reference.slice('secrets/'.length);
+    const root = resolve(directory);
+    let rootReal: string;
+    let candidateReal: string;
+    try {
+      rootReal = await realpath(root);
+      candidateReal = await realpath(resolve(rootReal, id));
+    } catch {
+      throw credentialResolutionError(reference, 'is unavailable');
+    }
+    if (!isWithinDirectory(rootReal, candidateReal))
+      throw credentialResolutionError(reference, 'escapes its directory');
+
+    let handle: Awaited<ReturnType<typeof open>> | undefined;
+    try {
+      handle = await open(
+        resolve(rootReal, id),
+        fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
+      );
+      const stat = await handle.stat();
+      if (!stat.isFile())
+        throw credentialResolutionError(reference, 'does not name a file');
+      if ((stat.mode & 0o077) !== 0)
+        throw credentialResolutionError(reference, 'has unsafe permissions');
+      const raw = await handle.readFile({ encoding: 'utf8' });
+      const token = raw.trim();
+      if (
+        token.length < MIN_SERVICE_CREDENTIAL_LENGTH ||
+        token.length > 16_384 ||
+        /\s/u.test(token)
+      )
+        throw credentialResolutionError(reference, 'contains an invalid token');
+      return token;
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.startsWith('secret reference ')
+      )
+        throw error;
+      throw credentialResolutionError(reference, 'is unavailable');
+    } finally {
+      await handle?.close().catch(() => undefined);
+    }
+  };
+}
+
 export type StandaloneFactIngressErrorCode =
   | 'BINDING_PLATFORM_MISMATCH'
   | 'CREDENTIAL_CONFLICT'
@@ -131,12 +216,18 @@ export class StandaloneFactIngressLifecycle
   ) {
     this.runtime = runtime;
     this.config = config;
-    this.resolveCredential = resolveCredential;
+    this.resolveCredential =
+      resolveCredential ??
+      createStandaloneServiceCredentialResolver(
+        this.config.serviceCredentialDirectory,
+      );
   }
 
   private readonly runtime: PlatformApplicationRuntime;
   private readonly config: StandalonePlatformConfig;
-  private readonly resolveCredential?: StandalonePlatformDependencies['resolveServiceCredential'];
+  private readonly resolveCredential: NonNullable<
+    StandalonePlatformDependencies['resolveServiceCredential']
+  >;
 
   private credentialReferences() {
     if (this.config.factIngressCredentials)
@@ -172,10 +263,10 @@ export class StandaloneFactIngressLifecycle
       // A staged binding has not passed the remote readiness gate. Retained
       // bindings are still needed for late facts from pinned sessions.
       if (binding.status === 'staged' || binding.status === 'retired') continue;
-      const token = await (this.resolveCredential?.(
+      const token = await this.resolveCredential(
         binding.serviceCredentialRef,
         binding,
-      ) ?? resolveEnvironmentSecret(binding.serviceCredentialRef));
+      );
       credentials.push({
         token,
         platformId: this.config.platformId,
@@ -389,13 +480,18 @@ export function createStandaloneRemoteRuntime(
   resources: StandalonePlatformResources,
   dependencies: StandalonePlatformDependencies = {},
 ): RemoteRuntimeOptions {
+  const resolveCredential =
+    dependencies.resolveServiceCredential ??
+    createStandaloneServiceCredentialResolver(
+      config.serviceCredentialDirectory,
+    );
   return {
     resolvePolicy: (release) => remotePolicy(resources, release),
     resolveCredential: async (_release, binding) => ({
-      serviceToken: await (dependencies.resolveServiceCredential?.(
+      serviceToken: await resolveCredential(
         binding.serviceCredentialRef,
         binding,
-      ) ?? resolveEnvironmentSecret(binding.serviceCredentialRef)),
+      ),
       allowInsecureLocalhost: config.allowInsecureLocalhost,
     }),
     probeReadiness: async (input) => {
