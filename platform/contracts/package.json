@@ -1,0 +1,49 @@
+{
+  "name": "@board-platform/contracts",
+  "version": "0.1.0",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "NOTICE.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./game-access": {
+      "types": "./dist/game-access.d.ts",
+      "import": "./dist/game-access.js"
+    },
+    "./types/protocol/errors": null,
+    "./auth/*": {
+      "types": "./dist/auth/*.d.ts",
+      "import": "./dist/auth/*.js"
+    },
+    "./types/protocol/*": {
+      "types": "./dist/types/protocol/*.d.ts",
+      "import": "./dist/types/protocol/*.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist",
+    "lint": "biome check src __tests__",
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@board-game/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.6"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

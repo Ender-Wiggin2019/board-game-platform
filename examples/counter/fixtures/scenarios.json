@@ -1,0 +1,29 @@
+[
+  {
+    "id": "complete",
+    "label": "Complete the counter",
+    "setup": {
+      "target": 3
+    },
+    "commands": [
+      {
+        "principalId": "player1",
+        "command": {
+          "type": "increment"
+        }
+      },
+      {
+        "principalId": "player1",
+        "command": {
+          "type": "increment"
+        }
+      },
+      {
+        "principalId": "player1",
+        "command": {
+          "type": "increment"
+        }
+      }
+    ]
+  }
+]

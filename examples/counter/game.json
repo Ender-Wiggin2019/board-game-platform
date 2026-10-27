@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "counter",
+  "title": "Counter",
+  "client": {
+    "package": "@board-games/counter-client",
+    "export": "."
+  },
+  "server": {
+    "package": "@board-games/counter-server",
+    "export": "."
+  },
+  "status": "scaffold"
+}

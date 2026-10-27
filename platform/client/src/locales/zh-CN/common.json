@@ -1,0 +1,411 @@
+{
+  "brand": {
+    "name": "Board Game Utopia",
+    "slogan": "在这里，遇见下一场好游戏。"
+  },
+  "home": {
+    "language": "语言"
+  },
+  "client": {
+    "app_shell": {
+      "document_title": "$t(brand.name)",
+      "home_label": "$t(brand.name) 首页",
+      "account_menu_label": "账户菜单",
+      "lobby": "对局大厅",
+      "login": "登录",
+      "daily_challenge": "每日挑战",
+      "my_games": "我的对局",
+      "rankings": "排位榜",
+      "stats": "统计",
+      "friends": "好友",
+      "profile": "个人资料",
+      "settings": "设置",
+      "messages": "消息",
+      "messages_with_count": "消息 ({{count}})",
+      "unread_messages_count": "{{count}} 条未读消息",
+      "admin": "管理",
+      "friends_pending_count": "{{count}} 个待处理好友事项",
+      "my_games_attention_count": "{{count}} 个对局需要处理",
+      "game_access": "游戏邀请码",
+      "platform_feedback": "反馈中心",
+      "platform_operations": "平台管理"
+    },
+    "full_screen_status": {
+      "loading_messages": {
+        "preparing_table": "正在准备游戏桌…",
+        "connecting_players": "正在连接玩家…",
+        "loading_pieces": "正在摆放游戏组件…",
+        "checking_updates": "正在检查更新…",
+        "opening_lobby": "正在打开大厅…",
+        "preparing_view": "正在准备你的视图…"
+      }
+    },
+    "data_table": {
+      "loading": "正在加载数据...",
+      "empty": "暂无结果。",
+      "error": "数据暂不可用。",
+      "page": "第 {{page}} / {{pageCount}} 页",
+      "rows_per_page": "每页行数",
+      "previous": "上一页",
+      "previous_page": "转到上一页",
+      "next": "下一页",
+      "retry": "重试",
+      "next_page": "转到下一页",
+      "sort": "按{{column}}排序"
+    },
+    "common": {
+      "loading": "加载中…",
+      "empty_value": "—",
+      "empty": "空",
+      "unknown": "未知",
+      "save": "保存",
+      "cancel": "取消",
+      "edit": "编辑",
+      "back": "返回",
+      "previous": "上一页",
+      "next": "下一步",
+      "next_page": "下一页",
+      "retry": "重试",
+      "confirm": "确认",
+      "skip": "跳过",
+      "ok": "确定",
+      "undo": "撤销",
+      "on": "开",
+      "off": "关",
+      "open": "开放",
+      "locked": "锁定",
+      "na": "不适用",
+      "seconds_short": "{{count}}秒",
+      "seconds_unit": "秒",
+      "close": "收起",
+      "close_dialog": "关闭",
+      "close_preview": "关闭预览",
+      "mission": "任务",
+      "crew": "玩家",
+      "ready": "已就绪",
+      "pending": "待定",
+      "live": "共享对局",
+      "actions": "操作"
+    },
+    "auth": {
+      "hero": {
+        "badge": "身份核验",
+        "title": "$t(brand.name)"
+      },
+      "tabs": {
+        "login": "登录",
+        "register": "创建账号"
+      },
+      "fields": {
+        "login": "邮箱或用户名",
+        "email": "邮箱",
+        "password": "密码",
+        "callsign": "昵称",
+        "access_code": "密码",
+        "password_confirm": "确认密码",
+        "verification_code": "验证码",
+        "username": "用户名"
+      },
+      "placeholders": {
+        "login": "请输入邮箱或用户名",
+        "email": "commander@mars.gov",
+        "registration_email": "请输入邮箱",
+        "callsign": "Commander Shepard",
+        "name": "请输入名称"
+      },
+      "actions": {
+        "authenticating": "正在核验身份…",
+        "sign_in": "登录",
+        "initializing": "正在创建账号…",
+        "register": "创建账号"
+      },
+      "migration_entry": "迁移测试服账号",
+      "toast": {
+        "login_failed": "登录失败",
+        "registration_failed": "创建账号失败"
+      },
+      "validation": {
+        "login_required": "请输入邮箱或用户名。",
+        "invalid_email": "邮箱格式不正确",
+        "password_min": "密码至少 6 位",
+        "password_confirm": "两次输入的密码不一致",
+        "invalid_code": "请输入 6 位验证码",
+        "name_min": "昵称至少 2 个字符",
+        "invalid_field": "输入不合法",
+        "password_match": "两次输入的密码一致"
+      },
+      "terms": {
+        "title": "使用条款",
+        "accept": "我已阅读并同意<terms>使用条款</terms>。",
+        "required": "请先阅读并同意使用条款，再创建账号。",
+        "close": "关闭使用条款",
+        "fan_work": "这是一个开源、由爱好者制作的桌游平台，与所收录游戏的出版商或创作者没有隶属或官方授权关系。",
+        "rights": "各游戏的原始内容、美术和商标归其相应权利人所有。本项目不主张拥有这些权利。",
+        "free": "本游戏内的所有游戏性内容均免费提供，无需付费解锁规则、卡牌或其他游戏功能。",
+        "noncommercial": "禁止未经许可私自搬运、复制或重新分发本项目及游戏素材并用于商业用途。开源代码的使用仍须遵守其适用许可证；代码许可证不授予第三方游戏内容、美术素材或商标的使用权。"
+      }
+    },
+    "game_chat": {
+      "dialog_label": "游戏聊天",
+      "title": "聊天",
+      "unread_label": "聊天，{{count}} 条未读消息",
+      "empty": "暂无消息。",
+      "placeholder": "输入消息",
+      "send": "发送"
+    },
+    "footer": {
+      "about": "关于与制作组"
+    },
+    "requestRecovery": {
+      "signin_action": "重新登录",
+      "offline": {
+        "title": "网络已断开",
+        "description": "联网后再试。"
+      },
+      "connection": {
+        "title": "暂时连接不上",
+        "description": "请稍后重试。"
+      },
+      "service": {
+        "title": "服务暂时不可用",
+        "description": "请稍后重试。"
+      },
+      "rateLimited": {
+        "title": "请稍等一下",
+        "description": "过一会儿再试。"
+      },
+      "signin": {
+        "title": "请重新登录",
+        "description": "登录已失效。"
+      },
+      "browser": {
+        "title": "暂时无法自动登录",
+        "description": "请重试；如果仍未成功，请换一个浏览器打开。"
+      },
+      "version": {
+        "title": "页面需要更新",
+        "description": "刷新后即可继续。"
+      },
+      "unexpected": {
+        "title": "这次操作没有完成",
+        "description": "请稍后重试。"
+      },
+      "retry_countdown": "{{seconds}} 秒后重试",
+      "retrying": "正在重试…",
+      "return_to_page": "返回页面"
+    },
+    "password": {
+      "title": "修改密码",
+      "current": "当前密码",
+      "new": "新密码（至少 6 个字符）",
+      "confirm": "确认新密码",
+      "save": "保存",
+      "saving": "正在保存…",
+      "cancel": "取消",
+      "updated": "密码已修改",
+      "forgot": "忘记密码？",
+      "contact": "如果邮箱属于已验证账号，重置链接会发送到该邮箱。",
+      "loading_contact": "正在准备密码找回…",
+      "forgot_title": "重置密码",
+      "forgot_hint": "请输入已验证账号的邮箱。无论账号是否存在，我们都会返回相同结果。",
+      "forgot_done": "如果该邮箱属于账号，重置链接已发送。",
+      "send_reset": "发送重置链接",
+      "reset_title": "设置新密码",
+      "reset_hint": "密码至少 6 位，并请再次确认。",
+      "reset_submit": "设置新密码",
+      "reset_done": "密码已重置，请使用新密码登录。",
+      "back_to_login": "返回登录",
+      "admin_contact": "密码找回管理员联系方式",
+      "edit": "修改"
+    },
+    "activation": {
+      "title": "账号激活",
+      "intro": "输入邀请码，开启游戏大厅。",
+      "code_label": "邀请码",
+      "code_placeholder": "输入邀请码",
+      "redeem": "激活账号",
+      "redeeming": "正在激活账号…",
+      "required": "请输入邀请码。",
+      "enter_lobby": "进入大厅"
+    },
+    "toast": {
+      "dismiss": "关闭"
+    },
+    "pwa": {
+      "update": {
+        "title": "新的任务界面已就绪",
+        "description": "准备好后刷新，即可使用最新的应用外壳。",
+        "refresh": "刷新"
+      },
+      "offlineReady": {
+        "title": "任务界面已保存，可离线启动",
+        "description": "安装后的应用可以在无网络时打开已缓存的界面外壳。"
+      },
+      "online": {
+        "title": "网络已恢复",
+        "description": "正在重新连接。"
+      }
+    },
+    "server_errors": {
+      "account_cannot_play": "你的账号暂时不能参与游戏。",
+      "auth_required": "请先登录。",
+      "internal_server_error": "服务器出现错误，请稍后重试。",
+      "protocol_upgrade_required": "当前页面版本过旧，请刷新后继续。",
+      "server_busy": "服务器繁忙，请稍后重试。",
+      "invalid_credentials": "邮箱、用户名或密码不正确。",
+      "invalid_or_expired_token": "请重新登录。",
+      "invite_code_exhausted": "邀请码已经被兑换完了。",
+      "invite_code_expired": "邀请码已过期。",
+      "invite_code_format": "邀请码须为 6–32 位英文字母和数字。",
+      "invite_code_already_exists": "该邀请码已存在。",
+      "missing_token": "缺少登录凭证，请重新登录。",
+      "user_not_found": "找不到用户。",
+      "user_not_found_sign_in": "找不到用户，请重新登录。",
+      "auth_email_in_use": "该邮箱已被其他账号使用。",
+      "auth_username_taken": "该用户名已被使用。",
+      "auth_email_unchanged": "请输入其他邮箱地址。",
+      "auth_reauth_required": "当前密码不正确。",
+      "auth_email_code_invalid": "验证码不正确。",
+      "auth_email_proof_expired": "验证已过期，请重新获取验证码。",
+      "fallback": {
+        "connection": "连接服务器失败，请稍后重试。",
+        "forbidden": "你没有权限执行这个操作。",
+        "game_not_found": "找不到这局游戏。",
+        "insufficient_resources": "资源不足，无法执行这个操作。",
+        "invalid_action": "当前不能执行这个操作。",
+        "invalid_free_action": "当前不能执行这个自由行动。",
+        "invalid_input_response": "这个选择已经无效，请刷新当前局面后重试。",
+        "invalid_phase": "当前阶段不能执行这个操作。",
+        "not_your_turn": "还没轮到你操作。",
+        "player_not_found": "找不到对应玩家。",
+        "stale_input": "这个选择已经过期，请刷新当前局面后重试。",
+        "unauthorized": "请先登录。",
+        "validation": "提交内容不符合要求，请检查后重试。"
+      }
+    },
+    "profile": {
+      "sections": {
+        "achievements": "成就"
+      },
+      "email": "邮箱",
+      "email_change": {
+        "action": "更换邮箱",
+        "new_email": "新邮箱",
+        "reauth": "当前密码",
+        "send_code": "发送验证码",
+        "code_sent": "验证码已发送到该邮箱。",
+        "confirm": "确认邮箱",
+        "updated": "邮箱绑定成功，请重新登录。",
+        "bind": "绑定邮箱",
+        "bound": "邮箱已绑定，可用于找回密码。",
+        "optional": "绑定邮箱为可选项。验证后，可通过该邮箱找回密码。"
+      },
+      "email_notifications": {
+        "label": "回合提醒邮件",
+        "vip_required": "领航员及以上用户可开启回合提醒邮件。",
+        "verify_first": "请先验证邮箱，再开启提醒邮件。",
+        "quiet_hours": "安静时间",
+        "quiet_start": "开始",
+        "quiet_end": "结束",
+        "timezone": "时区（IANA）",
+        "quiet_invalid": "请输入不同的开始与结束时间，以及有效的时区。",
+        "save_quiet": "保存安静时间",
+        "saved": "已保存"
+      },
+      "push": {
+        "label": "回合提醒推送",
+        "loading": "正在加载推送设置……",
+        "config_failed": "无法加载推送设置。",
+        "retry": "重试",
+        "needs_install": "在 iPhone 或 iPad 上，点击分享菜单并选择「添加到主屏幕」，然后从该图标打开 $t(brand.name) 才能开启通知。",
+        "insecure_context": "推送通知需要通过安全的 HTTPS 连接使用。",
+        "service_worker_unavailable": "当前浏览器或浏览模式未提供 Service Worker，无法接收后台推送。",
+        "push_api_unavailable": "当前浏览器或设备未提供网页推送能力（Push API）。",
+        "notifications_api_unavailable": "当前浏览器或浏览模式未提供系统通知能力（Notifications API）。",
+        "denied": "此网站的通知已被拦截，请先在浏览器或系统设置中重新允许。",
+        "server_unconfigured": "服务器未配置推送通知。",
+        "test": "测试",
+        "test_sent_other": "已发送到 {{count}} 台设备。",
+        "test_none": "没有已注册的设备收到。",
+        "test_failed": "测试发送失败。",
+        "diagnostic_code": "诊断代码：{{code}}",
+        "permission_dismissed": "尚未授予通知权限，请在浏览器权限提示中选择“允许”后重试。",
+        "permission_request_failed": "浏览器无法请求通知权限，请在浏览器设置中检查此网站的通知权限。",
+        "service_worker_not_ready": "后台通知服务未能就绪，请刷新页面后重试。",
+        "subscription_not_allowed": "浏览器或操作系统拒绝创建推送订阅，请检查通知权限和后台运行权限。",
+        "subscription_service_unavailable": "浏览器无法连接其推送服务，请检查网络、更新浏览器后重试。",
+        "subscription_failed": "浏览器创建推送订阅失败，请更新浏览器或改用 Chrome。",
+        "invalid_push_endpoint": "当前浏览器返回了无效的推送服务地址，属于浏览器兼容性问题；请更新浏览器，或暂时改用 Chrome。",
+        "server_registration_rejected": "服务器拒绝了浏览器生成的订阅信息，请更新浏览器后重试。",
+        "server_registration_unavailable": "服务器暂时无法保存推送订阅，请稍后重试。",
+        "server_enable_rejected": "服务器拒绝了通知设置，请重试或联系管理员。",
+        "server_enable_unavailable": "服务器暂时无法保存通知设置，请检查网络后重试。",
+        "session_changed": "开启通知期间账号已切换，请为当前账号重新选择此设置。",
+        "server_config_invalid": "服务器推送配置不完整，请联系管理员。",
+        "online_only": "网页保持在线时可以提醒；关闭网页后的推送当前未启用或不可用。",
+        "online_hint": "网页在线时可直接接收提醒；关闭网页后的提醒取决于浏览器推送服务。",
+        "unexpected_enable_error": "开启通知时发生意外错误，请重试一次；若仍失败，请反馈下方诊断代码。"
+      }
+    },
+    "crash_report": {
+      "submit": "发送崩溃报告",
+      "retry": "重试发送报告",
+      "submitting": "正在发送崩溃报告…",
+      "sent": "崩溃报告已发送。编号：{{reportId}}",
+      "failed": "崩溃报告发送失败。",
+      "limited": "已达到崩溃报告次数限制，请稍后再试。"
+    },
+    "error_boundary": {
+      "fallback": "渲染该区域时出现错误。"
+    },
+    "route_error": {
+      "version": {
+        "title": "页面没有加载完成",
+        "description": "请刷新页面再试。",
+        "reload": "刷新页面"
+      },
+      "generic": {
+        "title": "页面没有打开",
+        "description": "请重试，或返回首页。"
+      },
+      "home": "返回首页",
+      "technical_details": "技术详情"
+    },
+    "account": {
+      "title": "账号设置",
+      "name": "显示名称",
+      "save": "保存修改",
+      "language": "界面语言",
+      "logout": "退出登录",
+      "saved": "修改已保存。"
+    },
+    "logReport": {
+      "title": "上报问题",
+      "aiTitle": "上报 AI 决策问题",
+      "description": "将附上所选日志和可用的诊断证据，方便复现和排查问题。",
+      "whatHappened": "发生了什么问题？",
+      "aiDescription": "这个 AI 决策有什么问题？",
+      "expected": "预期行为或建议的改进",
+      "category": "问题分类",
+      "cancel": "取消",
+      "submit": "提交报告",
+      "submitting": "提交中…",
+      "success": "报告已提交",
+      "reference": "感谢反馈。报告编号：{{id}}",
+      "failure": "报告提交失败。",
+      "attachedEvent": "所选日志 #{{sequence}} 与对局诊断信息",
+      "open": "上报此问题",
+      "select": "选择日志以报告问题",
+      "logEntry": "对局日志",
+      "missingEvent": "所选日志已不可用。",
+      "categories": {
+        "bug": "程序错误",
+        "rules": "规则问题",
+        "ux": "体验问题",
+        "other": "其他",
+        "behavior": "AI 行为异常",
+        "optimization": "AI 优化建议"
+      }
+    }
+  }
+}

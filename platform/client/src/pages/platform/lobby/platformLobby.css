@@ -1,0 +1,120 @@
+.platform-lobby-action-strip {
+  isolation: isolate;
+}
+
+.platform-lobby-action-strip::after {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  content: "";
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in oklab, var(--surface-instrument) 96%, transparent),
+      color-mix(in oklab, var(--surface-instrument) 70%, transparent) 58%,
+      transparent
+    ),
+    linear-gradient(
+      180deg,
+      transparent,
+      color-mix(in oklab, var(--surface-instrument) 30%, transparent)
+    );
+}
+
+.platform-lobby-stat-card {
+  display: flex;
+  min-height: 6.75rem;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.75rem;
+  overflow: hidden;
+  border-radius: 6px;
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(
+        in oklab,
+        var(--surface-instrument) 84%,
+        var(--platform-lobby-stat-color) 16%
+      ),
+      var(--surface-instrument)
+    ), var(--surface-instrument);
+  padding: 0.75rem;
+}
+
+.platform-lobby-stat-card[data-signal="blue"] {
+  --platform-lobby-stat-color: var(--signal-blue-hi, #75b8ff);
+}
+
+.platform-lobby-stat-card[data-signal="green"] {
+  --platform-lobby-stat-color: var(--signal-green-hi, #70e0a3);
+}
+
+.platform-lobby-stat-card[data-signal="violet"] {
+  --platform-lobby-stat-color: var(--signal-violet-hi, #c7a5ff);
+}
+
+.platform-lobby-room-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .platform-lobby-room-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.platform-lobby-room-card,
+.platform-lobby-invitation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-radius: 5px;
+  background: color-mix(in oklab, var(--surface-instrument) 84%, transparent);
+  padding: 0.75rem 1rem;
+}
+
+.platform-lobby-room-card {
+  min-height: 7rem;
+}
+
+.platform-lobby-invitation {
+  flex-wrap: wrap;
+  border: 1px solid color-mix(in oklab, var(--metal-edge-soft) 88%, transparent);
+}
+
+.platform-lobby-advanced > summary {
+  list-style: none;
+}
+
+.platform-lobby-advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+.platform-lobby-advanced > summary::before {
+  display: inline-block;
+  margin-right: 0.5rem;
+  color: var(--text-500);
+  content: "+";
+}
+
+.platform-lobby-advanced[open] > summary::before {
+  content: "−";
+}
+
+@media (min-width: 640px) {
+  .platform-lobby-stat-card {
+    min-height: 8rem;
+    padding: 1.25rem;
+  }
+}
+
+@media (max-width: 639px) {
+  .platform-lobby-room-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

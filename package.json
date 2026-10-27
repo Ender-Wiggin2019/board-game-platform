@@ -1,0 +1,82 @@
+{
+  "name": "board-game-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Independent board-game platform, runtime SDK, client SDK and development tools",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ender-Wiggin2019/board-game-platform.git"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@10.0.0",
+  "pnpm": {
+    "overrides": {
+      "@babel/core": "7.29.6",
+      "@babel/plugin-transform-modules-systemjs": "7.29.8",
+      "@commitlint/is-ignored>semver": "7.5.2",
+      "@esbuild-kit/core-utils>esbuild": "0.28.1",
+      "@istanbuljs/load-nyc-config>js-yaml": "3.15.2",
+      "baseline-browser-mapping": "2.11.25",
+      "body-parser": "2.3.0",
+      "browserslist": "4.29.0",
+      "brace-expansion@^1.1.0": "1.1.18",
+      "brace-expansion@^2.0.0": "2.1.7",
+      "brace-expansion@^5.0.0": "5.0.12",
+      "engine.io-client": "6.6.6",
+      "form-data": "4.0.6",
+      "depcheck>js-yaml": "3.15.2",
+      "fast-uri": "3.1.8",
+      "i18next-parser>esbuild": "0.28.1",
+      "i18next-parser>js-yaml": "4.3.2",
+      "immutable": "5.1.9",
+      "mathjs": "15.2.0",
+      "multer": "2.3.0",
+      "nanoid": "3.3.19",
+      "postcss": "8.5.28",
+      "postcss-selector-parser": "6.1.4",
+      "qs": "6.16.0",
+      "seroval": "1.6.7",
+      "socket.io-parser": "4.2.7",
+      "svgo": "2.8.4",
+      "tencentcloud-sdk-nodejs-common>uuid": "11.1.1",
+      "tsup>esbuild": "0.28.1",
+      "@tootallnate/once": "2.0.1",
+      "undici": "7.29.1",
+      "ws": "8.21.0"
+    },
+    "patchedDependencies": {
+      "react-resizable-panels@4.12.3": "patches/react-resizable-panels@4.12.3.patch"
+    },
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "@parcel/watcher",
+      "@swc/core",
+      "argon2",
+      "core-js",
+      "esbuild",
+      "msw"
+    ]
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "build:platform": "turbo run build --filter=@board-platform/platform-server --filter=@board-platform/platform-client",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "verify:platform": "corepack pnpm --filter '@board-game/*' --filter '@board-platform/*' -r build && corepack pnpm --filter '@board-game/*' --filter '@board-platform/*' -r typecheck && corepack pnpm --filter '@board-game/*' --filter '@board-platform/*' -r lint && corepack pnpm --filter '@board-game/*' --filter '@board-platform/*' -r test",
+    "verify:platform:postgres": "./scripts/verify-platform-postgres.sh",
+    "dev": "pnpm --parallel --filter @board-platform/platform-server --filter @board-platform/platform-client dev",
+    "bgp": "node platform/tooling/dist/cli.js",
+    "smoke:platform": "node scripts/smoke-empty-platform.mjs"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.0.6",
+    "@commitlint/cli": "^16.3.0",
+    "@commitlint/config-conventional": "^16.2.4",
+    "lint-staged": "^12.5.0",
+    "turbo": "^2.9.14"
+  },
+  "license": "GPL-3.0-only"
+}

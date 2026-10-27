@@ -1,0 +1,403 @@
+.bgp-game-layout {
+  --bgp-layout-gap: 1rem;
+  --bgp-layout-sidebar-width: 22rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: var(--bgp-layout-gap);
+  min-width: 0;
+  min-height: 0;
+}
+
+.bgp-game-layout__board {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.bgp-game-layout__sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bgp-layout-gap);
+  min-width: 0;
+}
+
+.bgp-game-layout__history {
+  min-height: 0;
+  max-height: min(28rem, 50dvh);
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+.bgp-game-layout__result {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+@media (min-width: 64rem) {
+  .bgp-game-layout[data-sidebar] {
+    grid-template-columns: minmax(0, 1fr) minmax(
+        0,
+        var(--bgp-layout-sidebar-width)
+      );
+  }
+}
+
+.bgp-game-table {
+  --bgp-table-gap: 1rem;
+  display: grid;
+  grid-template-areas:
+    "players"
+    "board"
+    "actions";
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--bgp-table-gap);
+  min-width: 0;
+  min-height: 0;
+}
+
+.bgp-game-table__players,
+.bgp-game-table__board,
+.bgp-game-table__actions {
+  min-width: 0;
+}
+
+.bgp-game-table__players {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  grid-area: players;
+  padding: 0.75rem;
+  background: color-mix(in srgb, Canvas 94%, transparent);
+  border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
+  border-radius: 0.75rem;
+  backdrop-filter: blur(0.75rem);
+}
+
+.bgp-game-table__player-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0.75rem;
+  min-width: 0;
+  max-height: min(45dvh, 24rem);
+  overflow-y: auto;
+}
+
+.bgp-game-table__board {
+  grid-area: board;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.bgp-game-table__actions {
+  grid-area: actions;
+}
+
+.bgp-game-player-summary {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.75rem;
+  color: CanvasText;
+  background: color-mix(in srgb, CanvasText 5%, Canvas);
+  border: 1px solid color-mix(in srgb, CanvasText 12%, transparent);
+  border-radius: 0.625rem;
+}
+
+.bgp-game-player-summary__header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.625rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.bgp-game-player-summary__avatar {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  overflow: hidden;
+  color: Canvas;
+  background: CanvasText;
+  border-radius: 50%;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.bgp-game-player-summary__identity,
+.bgp-game-player-summary__meta {
+  display: flex;
+  min-width: 0;
+}
+
+.bgp-game-player-summary__identity {
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.bgp-game-player-summary__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bgp-game-player-summary__meta {
+  flex-wrap: wrap;
+  gap: 0.375rem 0.625rem;
+  color: color-mix(in srgb, CanvasText 68%, Canvas);
+  font-size: 0.75rem;
+}
+
+.bgp-game-player-summary__presence::before {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin: 0 0.25rem 0.05rem 0;
+  content: "";
+  background: currentColor;
+  border-radius: 50%;
+}
+
+.bgp-game-player-summary__presence[data-presence="online"] {
+  color: #18794e;
+}
+
+.bgp-game-player-summary__presence[data-presence="away"] {
+  color: #966c00;
+}
+
+.bgp-game-player-summary__presence[data-presence="offline"] {
+  color: color-mix(in srgb, CanvasText 55%, Canvas);
+}
+
+.bgp-game-player-summary__extra {
+  align-self: start;
+}
+
+.bgp-game-player-summary__attention {
+  padding: 0.375rem 0.5rem;
+  color: #7a3d00;
+  background: color-mix(in srgb, #f1a340 18%, Canvas);
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.bgp-game-player-summary__details {
+  min-width: 0;
+}
+
+.bgp-game-action-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  min-width: 0;
+  padding: 0.75rem;
+  background: Canvas;
+  border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
+  border-radius: 0.75rem;
+}
+
+.bgp-game-action-bar__status,
+.bgp-game-action-bar__error,
+.bgp-game-action-bar__content {
+  min-width: 0;
+}
+
+.bgp-game-action-bar__status,
+.bgp-game-action-bar__error,
+.bgp-game-action-bar__content {
+  grid-column: 1 / -1;
+}
+
+.bgp-game-action-bar__error {
+  color: #a33232;
+  font-size: 0.875rem;
+}
+
+.bgp-game-action-bar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.bgp-game-action-bar__button {
+  min-height: 2.5rem;
+  padding: 0.5rem 0.875rem;
+  color: CanvasText;
+  background: Canvas;
+  border: 1px solid color-mix(in srgb, CanvasText 35%, transparent);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.bgp-game-action-bar__button:hover:not(:disabled) {
+  background: color-mix(in srgb, CanvasText 9%, Canvas);
+}
+
+.bgp-game-action-bar__button:active:not(:disabled) {
+  background: color-mix(in srgb, CanvasText 15%, Canvas);
+}
+
+.bgp-game-action-bar__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.bgp-game-action-bar__button--primary {
+  color: Canvas;
+  background: CanvasText;
+  border-color: CanvasText;
+}
+
+.bgp-game-action-bar__button--primary:hover:not(:disabled),
+.bgp-game-action-bar__button--primary:active:not(:disabled) {
+  background: color-mix(in srgb, CanvasText 78%, Canvas);
+}
+
+.bgp-game-action-bar__button--cancel,
+.bgp-game-action-bar__button--undo {
+  color: color-mix(in srgb, CanvasText 72%, Canvas);
+}
+
+.bgp-session-controls {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.bgp-session-controls__clocks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.bgp-game-seat-handoff {
+  display: grid;
+  min-height: min(24rem, 60dvh);
+  place-items: center;
+  padding: 1rem;
+}
+
+.bgp-game-seat-handoff__card {
+  display: grid;
+  width: min(100%, 24rem);
+  gap: 0.75rem;
+  padding: 1.25rem;
+  color: CanvasText;
+  background: Canvas;
+  border: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
+  border-radius: 0.75rem;
+  box-shadow: 0 0.75rem 2rem color-mix(in srgb, CanvasText 12%, transparent);
+}
+
+.bgp-game-seat-handoff__switcher {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.5rem 0;
+}
+
+.bgp-game-seat-handoff__switcher .bgp-game-seat-handoff__field {
+  width: min(100%, 16rem);
+}
+
+.bgp-game-seat-handoff__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.bgp-game-seat-handoff__field {
+  display: grid;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.bgp-game-seat-handoff__field select {
+  min-height: 2.5rem;
+  padding: 0.5rem 0.625rem;
+  color: CanvasText;
+  background: Canvas;
+  border: 1px solid color-mix(in srgb, CanvasText 35%, transparent);
+  border-radius: 0.5rem;
+  font: inherit;
+}
+
+.bgp-game-seat-handoff__message {
+  margin: 0;
+  color: color-mix(in srgb, CanvasText 70%, Canvas);
+  font-size: 0.875rem;
+}
+
+.bgp-game-seat-handoff__reveal {
+  min-height: 2.5rem;
+  padding: 0.5rem 0.875rem;
+  color: Canvas;
+  background: CanvasText;
+  border: 1px solid CanvasText;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.bgp-game-seat-handoff__reveal:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (min-width: 64rem) {
+  .bgp-game-table {
+    grid-template-areas:
+      "board players"
+      "board actions";
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+    align-items: start;
+  }
+
+  .bgp-game-table__players {
+    top: 1rem;
+  }
+
+  .bgp-game-table__player-list {
+    grid-template-columns: minmax(0, 1fr);
+    max-height: none;
+  }
+}
+
+@media (max-width: 40rem) {
+  .bgp-game-action-bar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bgp-game-action-bar__actions {
+    justify-content: stretch;
+  }
+
+  .bgp-game-action-bar__button {
+    flex: 1 1 8rem;
+  }
+}
+
+.bgp-isolated-game {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-block-size: 100dvh;
+}
+.bgp-isolated-game__frame {
+  display: block;
+  inline-size: 100%;
+  block-size: 100dvh;
+  border: 0;
+}
+.bgp-isolated-game__frame[hidden] {
+  display: none;
+}

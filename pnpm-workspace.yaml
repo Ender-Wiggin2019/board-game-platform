@@ -1,0 +1,6 @@
+packages:
+  - "common/*"
+  - "platform/*"
+  - "apps/platform-*"
+  - "examples/*"
+  - "examples/*/*"

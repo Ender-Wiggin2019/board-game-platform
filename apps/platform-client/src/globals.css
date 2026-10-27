@@ -1,0 +1,7 @@
+@layer theme, base, vendor-cards, components, utilities;
+@import "tailwindcss";
+@import "@board-platform/client/styles/globals.css";
+@import "@board-game/components/layout.css";
+@config "../node_modules/@board-platform/client/dist/styles/tailwind.config.js";
+@source "../node_modules/@board-platform/client/dist/**/*.{js,jsx,ts,tsx}";
+@source "../node_modules/@board-game/components/dist/**/*.{js,jsx,ts,tsx}";

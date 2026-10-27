@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "gameId": "example",
+  "releaseId": "example-v1",
+  "environment": "production",
+  "storage": {
+    "driver": "postgres",
+    "urlEnv": "GAME_DATABASE_URL",
+    "namespace": "example",
+    "maxConnections": 10
+  },
+  "replay": {
+    "enabled": true,
+    "source": "game-storage",
+    "retentionPolicy": "standard",
+    "archive": "disabled"
+  },
+  "platformConnection": {
+    "platformId": "my-platform",
+    "apiUrlEnv": "PLATFORM_FACT_INGRESS_URL",
+    "issuer": "my-platform",
+    "verificationKeysRef": "env:PLATFORM_VERIFICATION_KEYS",
+    "serviceCredentialRef": "env:GAME_SERVICE_CREDENTIAL",
+    "audience": "my-platform-games",
+    "serviceTokenExpiresAtEnv": "GAME_SERVICE_TOKEN_EXPIRES_AT_MS"
+  },
+  "binding": {
+    "backendBindingId": "example-v1-backend",
+    "storageBindingId": "example-v1-storage",
+    "ownershipEpoch": "1"
+  },
+  "transport": {
+    "host": "0.0.0.0",
+    "controlPort": 3000,
+    "playerPort": 3001,
+    "authorizationPort": 3002,
+    "allowedOrigins": []
+  }
+}

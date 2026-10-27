@@ -1,0 +1,41 @@
+{
+  "name": "@board-platform/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "GPL-3.0-only",
+  "publishConfig": { "access": "public" },
+  "main": "./dist/cli.js",
+  "types": "./dist/cli.d.ts",
+  "files": ["dist", "templates", "NOTICE.md"],
+  "bin": { "bgp": "dist/cli.js" },
+  "exports": {
+    ".": { "types": "./dist/cli.d.ts", "import": "./dist/cli.js" },
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "import": "./dist/config.js"
+    },
+    "./compose": {
+      "types": "./dist/compose.d.ts",
+      "import": "./dist/compose.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@board-game/contracts": "workspace:*",
+    "@board-game/server": "workspace:*",
+    "@board-game/tooling": "workspace:*",
+    "@board-platform/dev-host": "workspace:*",
+    "playwright": "^1.59.1",
+    "vite": "^7.3.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.6"
+  }
+}

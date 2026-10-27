@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0d1b22" />
+    <title>Board Game Utopia · Dev Host</title>
+    <link rel="stylesheet" href="/assets/dev-host.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-a" aria-hidden="true"></div>
+    <div class="ambient ambient-b" aria-hidden="true"></div>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-lockup">
+          <div class="brand-mark" aria-hidden="true">BG</div>
+          <div>
+            <p class="eyebrow">BOARD GAME UTOPIA / LOCAL FLIGHT DECK</p>
+            <h1>Development host <span>memory profile</span></h1>
+          </div>
+        </div>
+        <div class="topbar-meta">
+          <span class="environment-pill"><span class="signal-dot"></span> DEV · LOOPBACK</span>
+          <span id="connectionStatus" class="connection-status">Starting service…</span>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="control-rail" aria-label="Development controls">
+          <section class="surface account-surface">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">01 / IDENTITY</p>
+                <h2>Choose an operator</h2>
+              </div>
+              <span class="section-code">AUTH</span>
+            </div>
+            <p id="authHint" class="muted-copy">Pick a fixed local account to issue a short-lived bearer.</p>
+            <div id="accountGrid" class="account-grid" aria-live="polite"></div>
+          </section>
+
+          <section class="surface room-surface">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">02 / ADMISSION</p>
+                <h2>Rooms &amp; scenarios</h2>
+              </div>
+              <button id="refreshRoomsButton" class="icon-button" type="button" title="Refresh rooms" aria-label="Refresh rooms">↻</button>
+            </div>
+            <form id="roomForm" class="stack-form">
+              <label>
+                <span>Mode</span>
+                <select id="modeSelect" name="modeId"></select>
+              </label>
+              <label>
+                <span>Scenario</span>
+                <select id="scenarioSelect" name="scenarioId">
+                  <option value="">No preset</option>
+                </select>
+              </label>
+              <div class="form-row">
+                <label>
+                  <span>Visibility</span>
+                  <select id="visibilitySelect" name="visibility">
+                    <option value="public">Public</option>
+                    <option value="private">Private</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Seed (non-rated)</span>
+                  <input id="seedInput" name="seed" type="text" placeholder="optional" autocomplete="off" />
+                </label>
+              </div>
+              <label>
+                <span>Setup JSON</span>
+                <textarea id="setupInput" name="setup" rows="4" spellcheck="false">{}</textarea>
+              </label>
+              <button id="createRoomButton" class="primary-button" type="submit" disabled>Create room</button>
+            </form>
+            <div class="divider"></div>
+            <div class="list-heading">
+              <span class="eyebrow">OPEN / ACTIVE</span>
+              <span id="roomCount" class="count-label">—</span>
+            </div>
+            <div id="roomsList" class="rooms-list" aria-live="polite">
+              <div class="empty-mini">Select an operator to inspect rooms.</div>
+            </div>
+          </section>
+        </aside>
+
+        <section class="main-stage" aria-live="polite">
+          <div id="errorBanner" class="error-banner" role="alert" hidden>
+            <div>
+              <strong id="errorTitle">Request failed</strong>
+              <span id="errorDetail"></span>
+            </div>
+            <button id="dismissErrorButton" class="icon-button" type="button" aria-label="Dismiss error">×</button>
+          </div>
+          <div id="toast" class="toast" role="status" hidden></div>
+
+          <section id="welcomeView" class="welcome-view">
+            <div class="welcome-grid">
+              <div class="welcome-copy">
+                <p class="eyebrow">REAL HOST / REAL PROTOCOL / ZERO SQL</p>
+                <h2>Build a table,<br /><em>read the signal.</em></h2>
+                <p class="lead">A compact local cockpit for rooms, turns, receipts, results and replay. Every action below crosses the same Host boundary your game service will use.</p>
+                <div class="welcome-rules">
+                  <div><span>01</span><p>Select a role</p></div>
+                  <div><span>02</span><p>Create or join a room</p></div>
+                  <div><span>03</span><p>Start a real session</p></div>
+                </div>
+              </div>
+              <div class="signal-card">
+                <div class="signal-card-header"><span>RUNTIME READOUT</span><span class="signal-line"></span></div>
+                <div class="readout-row"><span>profile</span><strong>memory / development</strong></div>
+                <div class="readout-row"><span>identity</span><strong>fixed local accounts</strong></div>
+                <div class="readout-row"><span>authority</span><strong>loopback only</strong></div>
+                <div class="readout-row"><span>state owner</span><strong>GameHost</strong></div>
+                <div class="readout-stamp">READY WHEN YOU ARE</div>
+              </div>
+            </div>
+          </section>
+
+          <section id="sessionView" class="session-view" hidden>
+            <header class="session-header">
+              <div>
+                <p id="sessionKicker" class="eyebrow">03 / SESSION</p>
+                <h2 id="sessionTitle">Untitled session</h2>
+                <div class="session-identifiers">
+                  <span id="sessionStatus" class="status-chip">—</span>
+                  <code id="sessionIdLabel">—</code>
+                </div>
+              </div>
+              <div class="session-actions">
+                <button id="refreshSessionButton" class="secondary-button" type="button">Refresh view</button>
+                <button id="resetSessionButton" class="danger-button" type="button">Reset this game</button>
+              </div>
+            </header>
+
+            <div class="overview-grid">
+              <article class="state-card state-card-wide">
+                <div class="card-label">CURRENT VIEW</div>
+                <div class="state-headline"><strong id="gameStateLabel">Waiting for view</strong><span id="revisionLabel">revision —</span></div>
+                <div id="scoreStrip" class="score-strip"></div>
+                <div class="state-facts">
+                  <div><span>Your seat</span><strong id="yourSeatLabel">—</strong></div>
+                  <div><span>Active seat</span><strong id="activeSeatLabel">—</strong></div>
+                  <div><span>View epoch</span><strong id="viewEpochLabel">—</strong></div>
+                </div>
+              </article>
+              <article class="state-card receipt-card">
+                <div class="card-label">LAST RECEIPT</div>
+                <strong id="receiptStatus">No command yet</strong>
+                <p id="receiptDetail" class="muted-copy">Command retries keep the same command ID and precondition.</p>
+                <button id="retryCommandButton" class="text-button" type="button" disabled>Retry last command</button>
+              </article>
+            </div>
+
+            <div class="action-grid">
+              <article class="surface action-surface">
+                <div class="section-heading compact-heading">
+                  <div><p class="eyebrow">04 / ACTIONS</p><h3>Command deck</h3></div>
+                  <span id="commandScopeLabel" class="section-code">—</span>
+                </div>
+                <p class="muted-copy">Inputs are parsed by the declared command descriptor, then submitted to the Host.</p>
+                <div id="commandDeck" class="command-deck"></div>
+              </article>
+              <article class="surface action-surface">
+                <div class="section-heading compact-heading">
+                  <div><p class="eyebrow">05 / INSPECT</p><h3>Query projection</h3></div>
+                  <span class="section-code">READ</span>
+                </div>
+                <label class="inline-label"><span>Revision</span><input id="queryRevisionInput" type="number" min="0" /></label>
+                <label class="stack-label"><span>Query JSON</span><textarea id="queryInput" rows="5" spellcheck="false">{}</textarea></label>
+                <button id="runQueryButton" class="secondary-button" type="button">Run query</button>
+                <pre id="queryOutput" class="json-output">No query submitted.</pre>
+              </article>
+            </div>
+
+            <div class="evidence-grid">
+              <article class="surface evidence-surface">
+                <div class="section-heading compact-heading">
+                  <div><p class="eyebrow">06 / HISTORY</p><h3>Event feed</h3></div>
+                  <button id="refreshEventsButton" class="text-button" type="button">Refresh</button>
+                </div>
+                <div id="eventsList" class="events-list"><div class="empty-mini">No events loaded.</div></div>
+              </article>
+              <article class="surface evidence-surface">
+                <div class="section-heading compact-heading">
+                  <div><p class="eyebrow">07 / REPLAY</p><h3>Public replay</h3></div>
+                  <button id="loadReplayButton" class="text-button" type="button">Load replay</button>
+                </div>
+                <div id="replaySummary" class="replay-summary"><div class="empty-mini">Replay appears after the session reaches a terminal state.</div></div>
+                <pre id="replayOutput" class="json-output" hidden></pre>
+              </article>
+            </div>
+
+            <article class="surface result-surface">
+              <div class="section-heading compact-heading">
+                <div><p class="eyebrow">08 / TERMINAL</p><h3>Result ledger</h3></div>
+                <button id="loadResultButton" class="text-button" type="button">Refresh result</button>
+              </div>
+              <div id="resultSummary" class="result-summary"><div class="empty-mini">No terminal result loaded.</div></div>
+            </article>
+          </section>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/assets/dev-host.js"></script>
+  </body>
+</html>

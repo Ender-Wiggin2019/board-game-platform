@@ -1,0 +1,21 @@
+services:
+  bgp-game-example-example-v1-6b5b8954:
+    image: "registry.example/example@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    environment:
+      GAME_ID: "example"
+      RELEASE_ID: "example-v1"
+      PLATFORM_ID: "my-platform"
+      GAME_RUNTIME_CONFIG: "/app/game.runtime.json"
+      GAME_DATABASE_URL: "${GAME_DATABASE_URL:?set GAME_DATABASE_URL}"
+      PLATFORM_FACT_INGRESS_URL: "${PLATFORM_FACT_INGRESS_URL:?set PLATFORM_FACT_INGRESS_URL}"
+      GAME_SERVICE_TOKEN_EXPIRES_AT_MS: "${GAME_SERVICE_TOKEN_EXPIRES_AT_MS:?set GAME_SERVICE_TOKEN_EXPIRES_AT_MS}"
+      PLATFORM_VERIFICATION_KEYS: "${PLATFORM_VERIFICATION_KEYS:?set PLATFORM_VERIFICATION_KEYS}"
+      GAME_SERVICE_CREDENTIAL: "${GAME_SERVICE_CREDENTIAL:?set GAME_SERVICE_CREDENTIAL}"
+    volumes:
+      - "./runtime/example-v1.json:/app/game.runtime.json:ro"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: "512M"
+    pids_limit: 256

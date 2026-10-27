@@ -1,0 +1,38 @@
+name: bgp-my-platform
+
+x-platform: &platform
+  image: "${PLATFORM_SERVER_IMAGE:?set an immutable platform server image digest}"
+  environment: &platform-environment
+    NODE_ENV: production
+    PLATFORM_CONFIG_PATH: /app/config/platform.config.json
+    PLATFORM_LOCK_PATH: /app/config/games.lock.json
+    PLATFORM_WORKSPACE_ROOT: /app/config
+    PLATFORM_DATABASE_URL: "${PLATFORM_DATABASE_URL:?set PLATFORM_DATABASE_URL}"
+    JWT_SECRET: "${JWT_SECRET:?set JWT_SECRET}"
+    PLATFORM_PLAYER_PRIVATE_KEY: "${PLATFORM_PLAYER_PRIVATE_KEY:?set the Ed25519 private key}"
+    PLATFORM_PLAYER_AUDIENCE: "${PLATFORM_PLAYER_AUDIENCE:?set PLATFORM_PLAYER_AUDIENCE}"
+    PLATFORM_FACT_INGRESS_HOST: 0.0.0.0
+    PLATFORM_FACT_INGRESS_PORT: "3003"
+    PLATFORM_PORT: "3000"
+    # Add each installed binding's env credential reference to this service.
+  volumes:
+    - "./platform.config.json:/app/config/platform.config.json:ro"
+    - "./games.lock.json:/app/config/games.lock.json:ro"
+
+services:
+  migrate:
+    <<: *platform
+    profiles: [migration]
+    command: [node, dist/migrate.js]
+  platform:
+    <<: *platform
+    init: true
+    restart: unless-stopped
+  web:
+    image: "${PLATFORM_CLIENT_IMAGE:?set an immutable platform client image digest}"
+    environment:
+      PLATFORM_API_UPSTREAM: platform:3000
+    ports:
+      - "127.0.0.1:${PLATFORM_HTTP_PORT:-8080}:80"
+    depends_on: [platform]
+    restart: unless-stopped

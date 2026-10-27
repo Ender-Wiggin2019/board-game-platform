@@ -1,0 +1,162 @@
+.game-home,
+.game-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  min-width: 0;
+}
+
+.game-home-heading {
+  padding-block: 1.5rem;
+  max-width: 42rem;
+}
+
+.game-home-heading h1,
+.game-workspace-heading h1 {
+  color: var(--text-100);
+  font-family: "Lexend Deca", "Noto Sans SC", sans-serif;
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  font-weight: 600;
+  margin-block: 0.5rem;
+}
+
+.game-home-heading > p:last-child,
+.game-home-details p {
+  color: var(--text-400);
+  line-height: 1.7;
+}
+
+.game-workspace-eyebrow {
+  color: var(--accent-400);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+}
+
+.game-home-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+.game-home-card {
+  overflow: hidden;
+  border: 1px solid var(--metal-edge-soft);
+  border-radius: 6px;
+  background: var(--surface-panel);
+  transition: border-color 160ms;
+}
+
+a.game-home-card:hover {
+  border-color: var(--accent-400);
+}
+
+.game-home-art {
+  position: relative;
+  aspect-ratio: 16 / 8;
+  display: flex;
+  align-items: flex-end;
+  padding: 1.5rem;
+  isolation: isolate;
+  background: var(--surface-instrument);
+}
+
+.game-home-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(transparent, rgb(0 0 0 / 75%));
+  z-index: -1;
+}
+
+.game-home-art img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: -2;
+}
+
+.game-home-art > span {
+  font-family: "Lexend Deca", "Noto Sans SC", sans-serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: white;
+}
+
+.game-home-details {
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.game-home-details > span {
+  color: var(--accent-400);
+  font-size: 0.875rem;
+  display: flex;
+  justify-content: space-between;
+}
+
+.game-workspace-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+}
+
+.game-workspace-back {
+  font-size: 0.75rem;
+  color: var(--text-400);
+}
+
+.game-workspace-back:hover {
+  color: var(--text-100);
+}
+
+.game-workspace-tabs {
+  display: flex;
+  gap: 1.5rem;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--metal-edge-soft);
+}
+
+.game-workspace-tabs a {
+  flex-shrink: 0;
+  padding-block: 0.75rem;
+  border-bottom: 2px solid transparent;
+  font-size: 0.875rem;
+  color: var(--text-400);
+}
+
+.game-workspace-tabs a:hover,
+.game-workspace-tabs a[aria-current="page"] {
+  color: var(--text-100);
+}
+
+.game-workspace-tabs a[aria-current="page"] {
+  border-bottom-color: var(--accent-400);
+}
+
+.game-workspace-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 2rem;
+  border: 1px solid var(--metal-edge-soft);
+  border-radius: 6px;
+  color: var(--text-400);
+}
+
+@media (max-width: 640px) {
+  .game-home-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .game-home-heading {
+    padding-block: 0.5rem;
+  }
+  .game-workspace-heading {
+    align-items: flex-start;
+  }
+}

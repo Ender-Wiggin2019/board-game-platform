@@ -1,0 +1,54 @@
+{
+  "name": "@board-platform/platform-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/main.js",
+  "types": "./dist/main.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/main.d.ts",
+      "import": "./dist/main.js"
+    },
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "import": "./dist/config.js"
+    },
+    "./app.module": {
+      "types": "./dist/app.module.d.ts",
+      "import": "./dist/app.module.js"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist tsconfig.build.tsbuildinfo && tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json",
+    "dev": "tsx src/main.ts",
+    "start": "node dist/main.js",
+    "db:migrate": "node dist/migrate.js",
+    "db:generate": "node scripts/generate-migration.mjs",
+    "typecheck": "tsc -p tsconfig.typecheck.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@board-game/core": "workspace:*",
+    "@board-game/contracts": "workspace:*",
+    "@board-game/server": "workspace:*",
+    "@board-platform/cli": "workspace:*",
+    "@board-platform/server": "workspace:*",
+    "@nestjs/common": "^11.1.17",
+    "@nestjs/core": "^11.1.17",
+    "@nestjs/platform-express": "^11.1.17",
+    "@nestjs/throttler": "^6.5.0",
+    "drizzle-orm": "^0.45.1",
+    "pg": "^8.20.0",
+    "reflect-metadata": "^0.2.2"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.10",
+    "@types/node": "^22.15.3",
+    "@types/pg": "^8.15.6",
+    "tsc-alias": "^1.8.17",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.6"
+  }
+}

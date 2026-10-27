@@ -1,0 +1,39 @@
+.platform-session-filter {
+  min-height: 2.5rem;
+  max-width: 100%;
+  border: 1px solid var(--metal-edge-soft);
+  border-radius: 5px;
+  background: var(--surface-instrument);
+  padding-inline: 0.75rem;
+  color: var(--text-100);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.platform-session-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  border: 1px solid var(--metal-edge-soft);
+  border-radius: 5px;
+  background: var(--surface-instrument);
+  padding: 1rem;
+}
+
+.platform-session-cover {
+  width: 3.5rem;
+  height: 3.5rem;
+  flex-shrink: 0;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.platform-session-details {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.platform-session-participants {
+  overflow-wrap: anywhere;
+}

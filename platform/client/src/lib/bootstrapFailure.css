@@ -1,0 +1,67 @@
+#bootstrap-failure {
+  min-height: 100dvh;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #0a1021;
+  color: #e2e8f0;
+  font:
+    16px / 1.6 system-ui,
+    sans-serif;
+}
+#bootstrap-failure section {
+  width: min(100%, 640px);
+  min-width: 0;
+}
+#bootstrap-failure h1 {
+  font-size: 24px;
+}
+#bootstrap-failure .bootstrap-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+#bootstrap-failure button,
+#bootstrap-failure a {
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 5px;
+  padding: 10px 16px;
+  background: #28364b;
+  color: inherit;
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+#bootstrap-failure button:first-child {
+  background: #c64c14;
+}
+#bootstrap-failure button:hover,
+#bootstrap-failure a:hover {
+  filter: brightness(1.15);
+}
+#bootstrap-failure button:active,
+#bootstrap-failure a:active {
+  transform: translateY(1px);
+}
+#bootstrap-failure button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+#bootstrap-failure p {
+  overflow-wrap: anywhere;
+}
+#bootstrap-failure details {
+  margin-top: 24px;
+  border-top: 1px solid #344155;
+  padding-top: 16px;
+}
+#bootstrap-failure summary {
+  cursor: pointer;
+}
+#bootstrap-failure pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}

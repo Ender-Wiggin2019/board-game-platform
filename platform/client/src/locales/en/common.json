@@ -1,0 +1,412 @@
+{
+  "brand": {
+    "name": "Board Game Utopia",
+    "slogan": "A home for board games."
+  },
+  "home": {
+    "language": "Language"
+  },
+  "client": {
+    "app_shell": {
+      "document_title": "$t(brand.name)",
+      "home_label": "$t(brand.name) Home",
+      "account_menu_label": "Account menu",
+      "lobby": "Game Lobby",
+      "login": "Sign In",
+      "daily_challenge": "Daily Challenge",
+      "my_games": "My Games",
+      "rankings": "Rankings",
+      "stats": "Stats",
+      "friends": "Friends",
+      "profile": "Profile",
+      "settings": "Settings",
+      "messages": "Messages",
+      "messages_with_count": "Messages ({{count}})",
+      "unread_messages_count": "{{count}} unread messages",
+      "admin": "Admin",
+      "friends_pending_count": "{{count}} pending friend items",
+      "my_games_attention_count": "{{count}} games require your attention",
+      "game_access": "Game access",
+      "platform_feedback": "Feedback center",
+      "platform_operations": "Platform operations"
+    },
+    "full_screen_status": {
+      "loading_messages": {
+        "preparing_table": "Preparing the table…",
+        "connecting_players": "Connecting players…",
+        "loading_pieces": "Setting out the pieces…",
+        "checking_updates": "Checking for updates…",
+        "opening_lobby": "Opening the lobby…",
+        "preparing_view": "Preparing your view…"
+      }
+    },
+    "data_table": {
+      "loading": "Loading rows...",
+      "empty": "No results.",
+      "error": "Rows are not available.",
+      "page": "Page {{page}} of {{pageCount}}",
+      "rows_per_page": "Rows per page",
+      "previous": "Previous",
+      "previous_page": "Previous page",
+      "next": "Next",
+      "retry": "Retry",
+      "next_page": "Next page",
+      "sort": "Sort {{column}}"
+    },
+    "common": {
+      "loading": "Loading…",
+      "empty_value": "—",
+      "empty": "Empty",
+      "unknown": "Unknown",
+      "save": "Save",
+      "cancel": "Cancel",
+      "edit": "Edit",
+      "back": "Back",
+      "previous": "Previous",
+      "next": "Next",
+      "next_page": "Next page",
+      "retry": "Retry",
+      "confirm": "Confirm",
+      "skip": "Skip",
+      "ok": "OK",
+      "undo": "Undo",
+      "on": "On",
+      "off": "Off",
+      "open": "Open",
+      "locked": "Locked",
+      "na": "N/A",
+      "seconds_short": "{{count}}s",
+      "seconds_unit": "SEC",
+      "close": "Stow",
+      "close_dialog": "Close",
+      "close_preview": "Close preview",
+      "mission": "Mission",
+      "crew": "Crew",
+      "ready": "Ready",
+      "pending": "Pending",
+      "live": "Shared game",
+      "actions": "Actions"
+    },
+    "auth": {
+      "hero": {
+        "badge": "Identity Verification",
+        "title": "$t(brand.name)"
+      },
+      "tabs": {
+        "login": "Sign In",
+        "register": "Create Account"
+      },
+      "fields": {
+        "login": "Email or username",
+        "email": "Email",
+        "password": "Password",
+        "callsign": "Nickname",
+        "access_code": "Password",
+        "password_confirm": "Confirm password",
+        "verification_code": "Verification code",
+        "username": "Username"
+      },
+      "placeholders": {
+        "login": "Enter your email or username",
+        "email": "commander@mars.gov",
+        "registration_email": "Enter your email",
+        "callsign": "Commander Shepard",
+        "name": "Enter your name"
+      },
+      "actions": {
+        "authenticating": "Verifying identity…",
+        "sign_in": "Sign In",
+        "initializing": "Creating account…",
+        "register": "Create Account"
+      },
+      "migration_entry": "Migrate a test server account",
+      "toast": {
+        "login_failed": "Sign in failed",
+        "registration_failed": "Account creation failed"
+      },
+      "validation": {
+        "login_required": "Enter your email or username.",
+        "invalid_email": "Enter a valid email address",
+        "password_min": "Password must be at least 6 characters",
+        "password_confirm": "Passwords do not match",
+        "invalid_code": "Enter the 6 digit verification code",
+        "name_min": "Nickname must be at least 2 characters",
+        "invalid_field": "Invalid field",
+        "password_match": "Passwords match"
+      },
+      "terms": {
+        "title": "Terms of use",
+        "accept": "I have read and agree to the <terms>Terms of use</terms>.",
+        "required": "Please read and agree to the terms before registering.",
+        "close": "Close terms",
+        "fan_work": "This open-source platform hosts fan-made board game implementations. It is not affiliated with or endorsed by the publishers or creators of the featured games.",
+        "rights": "The original games, content, artwork and trademarks belong to their respective rights holders. This project does not claim ownership of those rights.",
+        "free": "All gameplay content in this game is free. Payment is not required to access game rules, cards or other gameplay features.",
+        "noncommercial": "Unauthorized copying or redistribution of this project or its game assets for commercial use is prohibited. Open-source code remains subject to its applicable license; that license does not grant rights to third-party game content, artwork or trademarks."
+      }
+    },
+    "game_chat": {
+      "dialog_label": "Game chat",
+      "title": "Chat",
+      "unread_label": "Chat — unread messages: {{count}}",
+      "empty": "No messages.",
+      "placeholder": "Message",
+      "send": "Send"
+    },
+    "footer": {
+      "about": "About & Credits"
+    },
+    "requestRecovery": {
+      "signin_action": "Sign in again",
+      "offline": {
+        "title": "You are offline",
+        "description": "Try again when you are connected."
+      },
+      "connection": {
+        "title": "Unable to connect right now",
+        "description": "Please try again shortly."
+      },
+      "service": {
+        "title": "The service is temporarily unavailable",
+        "description": "Please try again shortly."
+      },
+      "rateLimited": {
+        "title": "Please wait a moment",
+        "description": "Try again shortly."
+      },
+      "signin": {
+        "title": "Please sign in again",
+        "description": "Your sign-in is no longer valid."
+      },
+      "browser": {
+        "title": "Unable to sign you in automatically",
+        "description": "Try again. If this continues, open the site in another browser."
+      },
+      "version": {
+        "title": "This page needs an update",
+        "description": "Refresh to continue."
+      },
+      "unexpected": {
+        "title": "This did not complete",
+        "description": "Please try again shortly."
+      },
+      "retry_countdown": "Retry in {{seconds}} seconds",
+      "retrying": "Trying again…",
+      "return_to_page": "Return to page"
+    },
+    "password": {
+      "title": "Change password",
+      "current": "Current password",
+      "new": "New password (at least 6 characters)",
+      "confirm": "Confirm new password",
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "updated": "Password updated",
+      "forgot": "Forgot password?",
+      "contact": "A reset link will be sent if this email belongs to a verified account.",
+      "loading_contact": "Preparing password recovery…",
+      "forgot_title": "Reset your password",
+      "forgot_hint": "Enter your verified account email. We use the same response whether the account exists.",
+      "forgot_done": "If the address belongs to an account, a reset link is on its way.",
+      "send_reset": "Send reset link",
+      "reset_title": "Choose a new password",
+      "reset_hint": "Choose a password with at least 6 characters, then confirm it.",
+      "reset_submit": "Set new password",
+      "reset_done": "Your password was reset. Sign in with the new password.",
+      "back_to_login": "Back to sign in",
+      "admin_contact": "Password recovery administrator contact",
+      "edit": "Edit"
+    },
+    "activation": {
+      "title": "Activate account",
+      "intro": "Enter an invitation code to unlock the game lobby.",
+      "code_label": "Invitation code",
+      "code_placeholder": "Enter your invitation code",
+      "redeem": "Activate account",
+      "redeeming": "Activating account…",
+      "required": "Enter an invitation code.",
+      "enter_lobby": "Enter lobby"
+    },
+    "toast": {
+      "dismiss": "Dismiss"
+    },
+    "pwa": {
+      "update": {
+        "title": "New mission interface ready",
+        "description": "Refresh when you are ready to use the latest app shell.",
+        "refresh": "Refresh"
+      },
+      "offlineReady": {
+        "title": "Mission interface saved for offline launch",
+        "description": "The installed app can open its cached shell without a network connection."
+      },
+      "online": {
+        "title": "Back online",
+        "description": "Reconnecting…"
+      }
+    },
+    "server_errors": {
+      "account_cannot_play": "Your account cannot play games yet.",
+      "auth_required": "Authentication required.",
+      "internal_server_error": "Internal server error",
+      "protocol_upgrade_required": "This page is out of date. Refresh to continue.",
+      "server_busy": "The server is busy. Try again in a moment.",
+      "invalid_credentials": "Invalid email, username, or password.",
+      "invalid_or_expired_token": "Please sign in again.",
+      "invite_code_exhausted": "This invite code has already been fully redeemed.",
+      "invite_code_expired": "This invite code has expired.",
+      "invite_code_format": "Use 6–32 English letters and numbers for the code.",
+      "invite_code_already_exists": "This activation code already exists.",
+      "missing_token": "Missing authorization token.",
+      "user_not_found": "User not found.",
+      "user_not_found_sign_in": "User not found. Please sign in again.",
+      "auth_email_in_use": "This email is already used by an account.",
+      "auth_username_taken": "This username is already taken.",
+      "auth_email_unchanged": "Enter a different email address.",
+      "auth_reauth_required": "The current password is incorrect.",
+      "auth_email_code_invalid": "The verification code is incorrect.",
+      "auth_email_proof_expired": "This verification has expired. Request a new code.",
+      "fallback": {
+        "connection": "{{message}}",
+        "forbidden": "{{message}}",
+        "game_not_found": "Game not found.",
+        "insufficient_resources": "{{message}}",
+        "invalid_action": "That action is not available in the current game state.",
+        "invalid_free_action": "That free action is not available right now.",
+        "invalid_input_response": "That choice is no longer valid.",
+        "invalid_phase": "This action is not available during the current phase.",
+        "not_your_turn": "It is not your turn to act.",
+        "player_not_found": "Player not found.",
+        "stale_input": "That choice has expired.",
+        "unauthorized": "{{message}}",
+        "validation": "The submitted data is not valid."
+      }
+    },
+    "profile": {
+      "sections": {
+        "achievements": "Achievements"
+      },
+      "email": "Email",
+      "email_change": {
+        "action": "Change email",
+        "new_email": "New email",
+        "reauth": "Current password",
+        "send_code": "Send verification code",
+        "code_sent": "A verification code was sent to this email.",
+        "confirm": "Confirm email",
+        "updated": "Email bound successfully. Please sign in again.",
+        "bind": "Bind email",
+        "bound": "Email bound. You can use it to reset your password.",
+        "optional": "Email binding is optional. Verify an email to enable password recovery."
+      },
+      "email_notifications": {
+        "label": "Turn reminder email",
+        "vip_required": "Turn reminder email is available to Navigators and higher tiers.",
+        "verify_first": "Verify your email before enabling reminder email.",
+        "quiet_hours": "Quiet hours",
+        "quiet_start": "From",
+        "quiet_end": "Until",
+        "timezone": "Time zone (IANA)",
+        "quiet_invalid": "Enter different start and end times and a valid time zone.",
+        "save_quiet": "Save quiet hours",
+        "saved": "Saved"
+      },
+      "push": {
+        "label": "Turn notifications",
+        "loading": "Loading push settings…",
+        "config_failed": "Could not load push settings.",
+        "retry": "Retry",
+        "needs_install": "On iPhone or iPad, open the Share menu and choose \"Add to Home Screen\", then open $t(brand.name) from that icon to enable notifications.",
+        "insecure_context": "Push notifications require a secure HTTPS connection.",
+        "service_worker_unavailable": "This browser or browsing mode does not provide Service Workers.",
+        "push_api_unavailable": "This browser or device does not provide the Web Push API.",
+        "notifications_api_unavailable": "This browser or browsing mode does not provide the Notifications API.",
+        "denied": "Notifications are blocked for this site. Re-allow them in your browser or system settings first.",
+        "server_unconfigured": "Push notifications are not configured on the server.",
+        "test": "Test",
+        "test_sent_one": "Sent to {{count}} device.",
+        "test_sent_other": "Sent to {{count}} devices.",
+        "test_none": "No registered devices received it.",
+        "test_failed": "Test failed.",
+        "diagnostic_code": "Diagnostic code: {{code}}",
+        "permission_dismissed": "Notification permission was not granted. Allow notifications in the browser prompt, then try again.",
+        "permission_request_failed": "This browser could not request notification permission. Check this site's notification permission in browser settings.",
+        "service_worker_not_ready": "The background notification service did not become ready. Reload the page, then try again.",
+        "subscription_not_allowed": "The browser or operating system refused to create a push subscription. Check notification and background-app permissions.",
+        "subscription_service_unavailable": "The browser could not reach its push service. Check the network, update the browser, then try again.",
+        "subscription_failed": "The browser failed to create a push subscription. Update the browser or try Chrome.",
+        "invalid_push_endpoint": "This browser returned an invalid push-service address, which is a browser compatibility problem. Update the browser or use Chrome for now.",
+        "server_registration_rejected": "The server rejected the subscription generated by this browser. Update the browser and try again.",
+        "server_registration_unavailable": "The server could not save the push subscription. Try again later.",
+        "server_enable_rejected": "The server rejected the notification setting. Try again or contact an administrator.",
+        "server_enable_unavailable": "The server could not save the notification setting. Check the network and try again.",
+        "session_changed": "The account changed while notifications were being enabled. Select the setting again for this account.",
+        "server_config_invalid": "The server push configuration is incomplete. Contact an administrator.",
+        "online_only": "Notifications work while this page stays online; push after closing the page is currently unavailable.",
+        "online_hint": "Online pages receive notifications directly; alerts after closing the page depend on your browser's push service.",
+        "unexpected_enable_error": "An unexpected error occurred while enabling notifications. Retry once, then report the diagnostic code below."
+      }
+    },
+    "crash_report": {
+      "submit": "Send crash report",
+      "retry": "Retry crash report",
+      "submitting": "Sending crash report…",
+      "sent": "Crash report sent. Reference: {{reportId}}",
+      "failed": "Could not send crash report.",
+      "limited": "Crash report limit reached. Try again later."
+    },
+    "error_boundary": {
+      "fallback": "Something went wrong while rendering this section."
+    },
+    "route_error": {
+      "version": {
+        "title": "This page did not finish loading",
+        "description": "Refresh the page to try again.",
+        "reload": "Refresh page"
+      },
+      "generic": {
+        "title": "This page could not be opened",
+        "description": "Try again, or return home."
+      },
+      "home": "Return home",
+      "technical_details": "Technical details"
+    },
+    "account": {
+      "title": "Account settings",
+      "name": "Display name",
+      "save": "Save changes",
+      "language": "Language",
+      "logout": "Sign out",
+      "saved": "Changes saved."
+    },
+    "logReport": {
+      "title": "Report an issue",
+      "aiTitle": "Report an AI decision",
+      "description": "The selected event and available diagnostic evidence will be attached to help reproduce the issue.",
+      "whatHappened": "What happened?",
+      "aiDescription": "What is wrong with this AI decision?",
+      "expected": "Expected behavior or suggested improvement",
+      "category": "Category",
+      "cancel": "Cancel",
+      "submit": "Submit report",
+      "submitting": "Submitting…",
+      "success": "Report submitted",
+      "reference": "Thank you. Reference: {{id}}",
+      "failure": "Could not submit report.",
+      "attachedEvent": "Selected log #{{sequence}} and session diagnostics",
+      "open": "Report this issue",
+      "select": "Select log for report",
+      "logEntry": "Game log entry",
+      "missingEvent": "The selected event is no longer available.",
+      "categories": {
+        "bug": "Bug",
+        "rules": "Rules",
+        "ux": "Experience",
+        "other": "Other",
+        "behavior": "Unexpected AI behavior",
+        "optimization": "AI improvement"
+      }
+    }
+  }
+}

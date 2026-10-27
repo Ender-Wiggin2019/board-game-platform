@@ -1,0 +1,74 @@
+{
+  "name": "@board-platform/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json",
+    "test": "vitest run",
+    "lint": "biome check src",
+    "typecheck": "tsc -p tsconfig.typecheck.json"
+  },
+  "dependencies": {
+    "@board-game/contracts": "workspace:*",
+    "@board-game/core": "workspace:*",
+    "@board-game/sdk": "workspace:*",
+    "@board-game/host": "workspace:*",
+    "@board-game/server": "workspace:*",
+    "@board-game/storage": "workspace:*",
+    "@nestjs/common": "^11.1.17",
+    "@nestjs/core": "^11.1.17",
+    "@nestjs/jwt": "^11.0.2",
+    "@nestjs/platform-express": "^11.1.17",
+    "@nestjs/platform-socket.io": "^11.1.17",
+    "@nestjs/throttler": "^6.5.0",
+    "@nestjs/websockets": "^11.1.17",
+    "argon2": "^0.45.1",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "drizzle-orm": "^0.45.1",
+    "nodemailer": "^10.0.10",
+    "pg": "^8.20.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "socket.io": "^4.8.3",
+    "tencentcloud-sdk-nodejs-ses": "^4.1.271",
+    "web-push": "^3.6.7",
+    "@board-platform/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "^11.1.17",
+    "@swc/core": "^1.15.21",
+    "@types/node": "^22.15.3",
+    "@types/pg": "^8.15.6",
+    "@board-game/testing": "workspace:*",
+    "@types/web-push": "^3.6.4",
+    "@vitest/coverage-v8": "^3.2.6",
+    "tsc-alias": "^1.8.17",
+    "tsx": "^4.23.15",
+    "typescript": "^5.6.3",
+    "unplugin-swc": "^1.5.9",
+    "vitest": "^3.2.6"
+  },
+  "description": "Game-independent account, transport and application services",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./*.js": {
+      "types": "./dist/*.d.ts",
+      "import": "./dist/*.js"
+    },
+    "./config/*.js": {
+      "types": "./dist/config/*.d.ts",
+      "import": "./dist/config/*.js"
+    },
+    "./platform/*.js": {
+      "types": "./dist/platform/*.d.ts",
+      "import": "./dist/platform/*.js"
+    }
+  }
+}

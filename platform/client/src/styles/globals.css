@@ -1,0 +1,659 @@
+/* Shared platform surfaces, typography and controls. */
+/* Material fills are shared by cards, dialogs and content panels. */
+@utility surface-panel {
+  background-color: var(--surface-panel);
+  background-image: var(--surface-panel-gradient);
+  box-shadow: var(--shadow-panel);
+}
+@utility surface-raised {
+  background-color: var(--surface-raised);
+  background-image: var(--surface-raised-gradient);
+}
+@utility surface-instrument {
+  background-color: var(--surface-instrument);
+  background-image: var(--surface-instrument-gradient);
+}
+
+/* ------------------------------------------------------------
+   Design tokens exposed as CSS custom properties.
+   Color values live here; src/config/theme.ts maps utilities to these variables.
+   ------------------------------------------------------------ */
+:root {
+  /* Five-level surface system */
+  --surface-void: #0e121d;
+  --surface-deep: #141a28;
+  --surface-panel: #1c2535;
+  --surface-raised: #253044;
+  --surface-instrument: #121925;
+  --surface-panel-gradient: linear-gradient(
+    135deg,
+    #212e41 0%,
+    #1c2535 54%,
+    #1e2335 100%
+  );
+  --surface-raised-gradient: linear-gradient(
+    135deg,
+    #2b394d 0%,
+    #253044 54%,
+    #262c41 100%
+  );
+  --surface-instrument-gradient: linear-gradient(
+    145deg,
+    #101723 0%,
+    #141b2a 100%
+  );
+  --shadow-panel: 0 6px 18px rgb(3 7 16 / 0.24), 0 1px 3px rgb(3 7 16 / 0.22);
+  --scene-gradient: linear-gradient(145deg, #0f1826 0%, #121727 100%);
+
+  /* Legacy aliases — kept for the dozens of components still using them. */
+  --bg-950: var(--surface-void);
+  --bg-900: var(--surface-deep);
+  --bg-800: var(--surface-panel);
+  --surface-900: var(--surface-panel);
+  --surface-800: var(--surface-raised);
+  --surface-700: #324158;
+
+  --text-200: #dce3ef;
+  --text-400: #aab9ce;
+
+  /* Text */
+  --text-100: #f2ede4;
+  --text-300: #becbdd;
+  --text-500: #92a3bb;
+  --text-700: #63758e;
+
+  /* Signal palette — meaning-bound accents */
+  --signal-blue: oklch(0.68 0.11 240);
+  --signal-blue-hi: oklch(0.78 0.1 240);
+  --signal-blue-lo: oklch(0.5 0.09 240);
+  --signal-violet: oklch(0.62 0.14 305);
+  --signal-violet-hi: oklch(0.74 0.13 305);
+  --signal-violet-lo: oklch(0.48 0.12 305);
+  --signal-green: oklch(0.78 0.13 155);
+  --signal-green-hi: oklch(0.86 0.12 155);
+  --signal-green-lo: oklch(0.58 0.12 155);
+  --signal-amber: oklch(0.78 0.13 75);
+  --signal-amber-hi: oklch(0.86 0.13 75);
+  --signal-amber-lo: oklch(0.58 0.12 75);
+  --signal-red: oklch(0.65 0.18 25);
+  --signal-red-hi: oklch(0.74 0.18 25);
+  --signal-red-lo: oklch(0.5 0.16 25);
+  --signal-white: oklch(0.96 0.008 260);
+
+  /* Refine v2 lobby scene palette */
+  --lobby-deep-space: #0e121d;
+  --lobby-star-track: #1e5aba;
+  --lobby-energy-orange: #f26a21;
+  --lobby-orbit-white: #f2e6d0;
+  --lobby-star-gray: #333e4b;
+  /* Legacy aliases kept for existing consumers. */
+  --lobby-rock-gray: #0e121d;
+  --lobby-metal-gray: #333e4b;
+  --lobby-ground-gray: #333e4b;
+  --lobby-stardust: #f2e6d0;
+  --lobby-planet-orange: #f26a21;
+  --lobby-engine-cyan: #1e5aba;
+
+  /* Copper-orange interaction accents; signal colors retain their meanings. */
+  --accent-400: #f09a64;
+  --accent-500: #d76429;
+  --accent-600: #b84f1e;
+
+  /* Metal bevel palette */
+  --metal-highlight: oklch(0.78 0.07 240);
+  --metal-face-top: oklch(0.58 0.1 240);
+  --metal-face-mid: oklch(0.5 0.09 240);
+  --metal-face-bot: oklch(0.44 0.08 240);
+  --metal-shadow: oklch(0.28 0.06 240);
+  --metal-edge: #35465f;
+  --metal-edge-soft: #28374d;
+
+  /* Danger (alias of signal-red) */
+  --danger-500: oklch(0.65 0.18 25);
+
+  /* Motion timing */
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ease-enter: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-expo-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /*
+   * Cosmic atmosphere — project-drawn SVG background, not existing board art.
+   * Low-poly space facets and sparse signal stars keep the app dark but alive.
+   */
+  --bg-atmosphere: var(--platform-atmosphere, none);
+
+  /*
+   * Scene background — the 3-tier client backdrop:
+   *   1. --scene-bg            solid mid color (sampled from footer's top edge)
+   *   2. --scene-hero-image    optional per-route top image (set via useSceneHero)
+   *   3. --scene-footer-image  global bottom banner (refine v2 c05187fa)
+   * The mid color matches the footer's top edge so the two seams disappear.
+   */
+  --scene-bg: #0f1725;
+  --scene-hero-image: none;
+  --scene-footer-image: none;
+}
+/* ------------------------------------------------------------
+   Reset
+   ------------------------------------------------------------ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family:
+    "Lexend Deca", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
+  font-weight: 400;
+  /*
+   * Body paints the shared scene mid-color so every route — including ones
+   * that never mount AppShell (game, debug) — meets the footer banner
+   * without a visible seam.
+   */
+  background-color: var(--scene-bg);
+  background-image: var(--scene-gradient);
+  background-attachment: fixed;
+  color: var(--text-100);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+@layer base {
+  /* Lexend Deca is the Latin display face; Noto Sans SC supplies CJK glyphs. */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: "Lexend Deca", "Noto Sans SC", ui-sans-serif, sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+}
+
+code,
+kbd,
+samp,
+pre {
+  font-family:
+    "Lexend Deca", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo,
+    monospace;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum", "zero";
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent-500) 35%, transparent);
+  color: var(--text-100);
+}
+
+/* Controls have no automatic focus decoration; text fields own their feedback. */
+:focus-visible {
+  outline: none;
+}
+
+@layer base {
+  /* Native fields share the input feedback; component utilities can refine it. */
+  input:where(
+      :not(
+          [type="checkbox"],
+          [type="radio"],
+          [type="range"],
+          [type="file"],
+          [type="button"],
+          [type="submit"],
+          [type="reset"],
+          [type="hidden"]
+        )
+    ):focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    border-color: var(--accent-500);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-500) 40%, transparent);
+  }
+}
+
+/* Scrollbar — thin, dark, blends into the void. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-700) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--surface-700);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.34 0.04 240);
+  background-clip: padding-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .signal-pulse {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}
+
+/* ============================================================
+   Reusable metal surface utilities
+   ============================================================ */
+.metal-hairline {
+  border: 1px solid transparent;
+  border-image: linear-gradient(
+      to bottom,
+      oklch(0.55 0.04 240) 0%,
+      oklch(0.32 0.03 240) 50%,
+      oklch(0.22 0.025 240) 100%
+    )
+    1;
+  box-shadow: inset 0 1px 0 oklch(0.78 0.04 240 / 0.25);
+}
+
+.metal-face {
+  background: linear-gradient(
+    to bottom,
+    var(--metal-face-top) 0%,
+    var(--metal-face-mid) 50%,
+    var(--metal-face-bot) 100%
+  );
+  border: 1px solid oklch(0.3 0.06 240);
+  box-shadow:
+    inset 0 1px 0 oklch(0.78 0.07 240 / 0.5),
+    inset 0 -1px 0 oklch(0.22 0.05 240 / 0.6),
+    0 1px 0 oklch(0.08 0.018 260 / 0.8),
+    0 0 0 1px oklch(0.2 0.04 240 / 0.4);
+  color: oklch(0.98 0.01 240);
+}
+
+.metal-face:hover {
+  background: linear-gradient(
+    to bottom,
+    oklch(0.62 0.1 240) 0%,
+    oklch(0.54 0.09 240) 50%,
+    oklch(0.48 0.08 240) 100%
+  );
+}
+
+.metal-face:active,
+.metal-face[data-pressed="true"] {
+  background: linear-gradient(
+    to bottom,
+    var(--metal-face-bot) 0%,
+    var(--metal-face-mid) 55%,
+    var(--metal-face-top) 100%
+  );
+  box-shadow:
+    inset 0 1px 2px oklch(0.12 0.04 240 / 0.7),
+    inset 0 -1px 0 oklch(0.6 0.08 240 / 0.4),
+    0 0 0 1px oklch(0.18 0.04 240 / 0.5);
+}
+
+.metal-face:disabled,
+.metal-face[aria-disabled="true"] {
+  opacity: 0.55;
+  filter: saturate(0.6);
+  cursor: not-allowed;
+}
+
+/* ============================================================
+   Instrumentation primitives
+   ============================================================ */
+
+/* Section-divider tick — single thin white line, soft fade. */
+.instrument-tick {
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    var(--surface-700) 20%,
+    var(--surface-700) 80%,
+    transparent 100%
+  );
+}
+
+/* Lexend Deca readout — tabular, slashed-zero. */
+.readout {
+  font-family:
+    "Lexend Deca", "Noto Sans SC", ui-monospace, SFMono-Regular, Menlo,
+    monospace;
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-feature-settings: "tnum", "zero";
+  letter-spacing: 0.02em;
+  color: var(--text-100);
+}
+
+/* Mission-log label — Lexend Deca for Latin, Noto Sans SC for CJK. */
+.micro-label {
+  font-family: "Lexend Deca", "Noto Sans SC", ui-sans-serif, sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  color: oklch(0.62 0.02 260);
+}
+
+/* Instrument panel — recessed dark surface inside another container. */
+.instrument-panel {
+  position: relative;
+  border-radius: 6px;
+  background-color: var(--surface-instrument);
+  background-image: var(--surface-instrument-gradient);
+}
+
+/* Section head — micro-label + flanking rule. */
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+/* Decorative blue tick removed — section labels stand on their own per the
+   "signal over noise" principle. Kept as a no-op so the ~40 existing markup
+   spans collapse out of flow without a churny multi-file deletion. */
+.section-head__tick {
+  display: none;
+}
+.section-head__rule {
+  flex: 1 1 auto;
+  height: 1px;
+  background: linear-gradient(to right, var(--surface-700) 0%, transparent 100%);
+  opacity: 0.5;
+}
+
+/* ============================================================
+   Telemetry tile — recessed mono readout on a panel.
+   Use clusters of 2-6 in a CSS grid; never standalone.
+   ============================================================ */
+.telemetry-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.875rem 1rem;
+  border-radius: 6px;
+  background-color: var(--surface-instrument);
+  background-image: var(--surface-instrument-gradient);
+  overflow: hidden;
+}
+
+.telemetry-tile__label {
+  font-family: "Lexend Deca", "Noto Sans SC", ui-sans-serif, sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  color: oklch(0.62 0.02 260);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.telemetry-tile__value {
+  font-family: "Lexend Deca", "Noto Sans SC", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-feature-settings: "tnum", "zero";
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: var(--signal-white);
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.telemetry-tile__sub {
+  font-family: "Lexend Deca", "Noto Sans SC", ui-monospace, monospace;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-500);
+  letter-spacing: 0.04em;
+}
+
+/* Telemetry tile signal accent: applied via [data-signal="blue|violet|..."] */
+.telemetry-tile[data-signal="blue"] .telemetry-tile__value {
+  color: var(--signal-blue-hi);
+}
+.telemetry-tile[data-signal="violet"] .telemetry-tile__value {
+  color: var(--signal-violet-hi);
+}
+.telemetry-tile[data-signal="green"] .telemetry-tile__value {
+  color: var(--signal-green-hi);
+}
+.telemetry-tile[data-signal="amber"] .telemetry-tile__value {
+  color: var(--signal-amber-hi);
+}
+.telemetry-tile[data-signal="red"] .telemetry-tile__value {
+  color: var(--signal-red-hi);
+}
+
+/* ============================================================
+   Game Lobby scene primitives
+   ============================================================ */
+.mission-scene {
+  background-color: var(--surface-deep);
+  background-image: var(--platform-atmosphere, none);
+  background-position: center;
+  background-size: cover;
+}
+
+.page-intro {
+  position: relative;
+  text-shadow: 0 2px 16px oklch(0.08 0.018 260 / 0.6);
+}
+
+.mission-panel {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  background-color: var(--surface-panel);
+  background-image: var(--surface-panel-gradient);
+  box-shadow: var(--shadow-panel);
+}
+
+.mission-stat-card[data-signal="blue"] {
+  --stat-color: var(--signal-blue-hi);
+}
+
+.mission-stat-card[data-signal="violet"] {
+  --stat-color: var(--signal-violet-hi);
+}
+
+.mission-stat-card[data-signal="green"] {
+  --stat-color: var(--signal-green-hi);
+}
+
+/* ============================================================
+   Signal indicator — 8px dot with matched glow.
+   Pulses slowly when active.
+   ============================================================ */
+.signal-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.signal-dot[data-signal="blue"] {
+  background: var(--signal-blue);
+  box-shadow:
+    0 0 8px oklch(0.68 0.11 240 / 0.6),
+    0 0 24px oklch(0.68 0.11 240 / 0.18);
+}
+.signal-dot[data-signal="violet"] {
+  background: var(--signal-violet);
+  box-shadow:
+    0 0 8px oklch(0.62 0.14 305 / 0.6),
+    0 0 24px oklch(0.62 0.14 305 / 0.22);
+}
+.signal-dot[data-signal="green"] {
+  background: var(--signal-green);
+  box-shadow:
+    0 0 6px oklch(0.78 0.13 155 / 0.55),
+    0 0 18px oklch(0.78 0.13 155 / 0.18);
+}
+.signal-dot[data-signal="amber"] {
+  background: var(--signal-amber);
+  box-shadow:
+    0 0 6px oklch(0.78 0.13 75 / 0.55),
+    0 0 18px oklch(0.78 0.13 75 / 0.18);
+}
+.signal-dot[data-signal="red"] {
+  background: var(--signal-red);
+  box-shadow:
+    0 0 8px oklch(0.65 0.18 25 / 0.65),
+    0 0 22px oklch(0.65 0.18 25 / 0.22);
+}
+.signal-dot[data-signal="off"] {
+  background: oklch(0.32 0.02 260);
+  box-shadow: none;
+}
+
+.signal-dot[data-active="true"] {
+  animation: signal-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes signal-pulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.signal-pulse {
+  animation: signal-pulse 2.4s ease-in-out infinite;
+}
+
+/* ============================================================
+   Chip — instrumentation chip carrying a small readout value.
+   ============================================================ */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  background: oklch(0.13 0.02 260 / 0.75);
+  border: 1px solid var(--metal-edge-soft);
+  font-family: "Lexend Deca", "Noto Sans SC", ui-monospace, monospace;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums slashed-zero;
+  color: var(--text-300);
+}
+
+.chip[data-active="true"] {
+  border-color: var(--accent-500);
+  color: var(--text-100);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent-500) 20%, transparent),
+    inset 0 1px 0 oklch(0.78 0.04 240 / 0.25);
+}
+
+/* ============================================================
+   Meter — thin horizontal phosphor meter.
+   ============================================================ */
+.meter {
+  position: relative;
+  height: 3px;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 999px;
+  background: oklch(0.08 0.018 260 / 0.9);
+  box-shadow: inset 0 0 0 1px oklch(0.22 0.025 260 / 0.8);
+}
+.meter__fill {
+  height: 100%;
+  background: linear-gradient(
+    to right,
+    oklch(0.82 0.01 260) 0%,
+    oklch(0.96 0.008 260) 100%
+  );
+  box-shadow: 0 0 6px oklch(0.96 0.008 260 / 0.3);
+  transition: width 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.meter[data-full="true"] .meter__fill {
+  background: linear-gradient(
+    to right,
+    oklch(0.62 0.12 240) 0%,
+    oklch(0.78 0.08 240) 100%
+  );
+  box-shadow: 0 0 6px oklch(0.68 0.11 240 / 0.45);
+}
+
+/* Tick row — repeating instrumentation marks. */
+.tick-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 6px;
+  opacity: 0.55;
+}
+.tick-row::before,
+.tick-row::after {
+  content: "";
+  display: block;
+  flex: 1 1 0;
+  height: 100%;
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--surface-700) 0,
+    var(--surface-700) 1px,
+    transparent 1px,
+    transparent 6px
+  );
+}
+
+/* Gold / silver / bronze tints for the top leaderboard rows. */
+.rank-row--gold {
+  background: linear-gradient(
+    to right,
+    oklch(0.5 0.12 85 / 0.3),
+    oklch(0.3 0.07 82 / 0.14) 55%,
+    oklch(0.3 0.07 82 / 0.04)
+  );
+}
+
+.rank-row--silver {
+  background: linear-gradient(
+    to right,
+    oklch(0.6 0.015 250 / 0.26),
+    oklch(0.4 0.012 250 / 0.12) 55%,
+    oklch(0.4 0.012 250 / 0.04)
+  );
+}
+
+.rank-row--bronze {
+  background: linear-gradient(
+    to right,
+    oklch(0.5 0.09 55 / 0.28),
+    oklch(0.32 0.06 52 / 0.12) 55%,
+    oklch(0.32 0.06 52 / 0.04)
+  );
+}

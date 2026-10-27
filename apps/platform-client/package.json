@@ -1,0 +1,36 @@
+{
+  "name": "@board-platform/platform-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test sharedModulesPlugin.test.ts"
+  },
+  "dependencies": {
+    "@board-game/client": "workspace:*",
+    "@board-game/components": "workspace:*",
+    "@board-game/contracts": "workspace:*",
+    "@board-platform/client": "workspace:*",
+    "@tanstack/react-query": "^5.90.7",
+    "@tanstack/react-router": "^1.132.23",
+    "i18next": "^23.16.8",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-i18next": "^13.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.6",
+    "@types/react": "18.3.28",
+    "@types/react-dom": "18.3.7",
+    "@vitejs/plugin-react": "^5.0.4",
+    "@tailwindcss/postcss": "^4.1.15",
+    "tailwindcss": "^4.1.15",
+    "postcss": "^8.5.28",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.5"
+  }
+}

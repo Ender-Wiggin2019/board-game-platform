@@ -1,0 +1,16 @@
+.ui-disclosure > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  cursor: pointer;
+  list-style: none;
+}
+.ui-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+.ui-disclosure__chevron {
+  flex: none;
+}
+.ui-disclosure[open] > summary > .ui-disclosure__chevron {
+  transform: rotate(90deg);
+}

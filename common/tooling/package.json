@@ -1,0 +1,63 @@
+{
+  "name": "@board-game/tooling",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "GPL-3.0-only",
+  "publishConfig": { "access": "public" },
+  "main": "./dist/release.js",
+  "module": "./dist/release.js",
+  "types": "./dist/release.d.ts",
+  "files": ["dist", "NOTICE.md"],
+  "exports": {
+    ".": { "types": "./dist/release.d.ts", "import": "./dist/release.js" },
+    "./game-manifest": {
+      "types": "./dist/game-manifest.d.ts",
+      "import": "./dist/game-manifest.js"
+    },
+    "./game-verify": {
+      "types": "./dist/game-verify.d.ts",
+      "import": "./dist/game-verify.js"
+    },
+    "./game-package": {
+      "types": "./dist/game-package.d.ts",
+      "import": "./dist/game-package.js"
+    },
+    "./client-build": {
+      "types": "./dist/client-build.d.ts",
+      "import": "./dist/client-build.js"
+    },
+    "./init": {
+      "types": "./dist/init.d.ts",
+      "import": "./dist/init.js"
+    },
+    "./game-init": {
+      "types": "./dist/game-init.d.ts",
+      "import": "./dist/game-init.js"
+    },
+    "./performance": {
+      "types": "./dist/performance.d.ts",
+      "import": "./dist/performance.js"
+    },
+    "./release": {
+      "types": "./dist/release.d.ts",
+      "import": "./dist/release.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src __tests__",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@board-game/contracts": "workspace:*",
+    "@board-game/host": "workspace:*",
+    "@board-game/storage": "workspace:*",
+    "@board-game/testing": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.6"
+  }
+}

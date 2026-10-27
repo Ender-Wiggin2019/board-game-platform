@@ -1,0 +1,33 @@
+{
+  "name": "@board-game/host",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "GPL-3.0-only",
+  "publishConfig": { "access": "public" },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "NOTICE.md"],
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "biome check src __tests__"
+  },
+  "dependencies": {
+    "@board-game/contracts": "workspace:*",
+    "@board-game/sdk": "workspace:*",
+    "@board-game/storage": "workspace:*"
+  },
+  "devDependencies": {
+    "@board-game/testing": "workspace:*",
+    "@types/node": "^22.15.3",
+    "@types/pg": "^8.15.6",
+    "pg": "^8.20.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.6"
+  }
+}
