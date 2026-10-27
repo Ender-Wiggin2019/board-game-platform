@@ -1,9 +1,18 @@
-import type { SessionRoute } from '@board-game/contracts';
+import type {
+  GameServiceDescription,
+  SessionRoute,
+} from '@board-game/contracts';
 import type { PlatformApplicationRuntime } from '@board-platform/server/platform/PlatformApplicationRuntime.js';
-import type { ReleaseBindingRecord } from '@board-platform/server/platform/releases/types.js';
+import type {
+  ReleaseBindingRecord,
+  ReleaseRecord,
+} from '@board-platform/server/platform/releases/types.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { StandalonePlatformConfig } from '../src/config.js';
-import { StandaloneFactIngressLifecycle } from '../src/standalone-runtime.js';
+import {
+  createStandaloneRemoteRuntime,
+  StandaloneFactIngressLifecycle,
+} from '../src/standalone-runtime.js';
 
 const token = 'standalone-fact-token-012345678901234567890123';
 const route: SessionRoute = {
@@ -225,5 +234,32 @@ describe('standalone platform default fact ingress', () => {
     });
     expect(JSON.stringify(lifecycle.status)).not.toContain('token-value');
     await lifecycle.beforeApplicationShutdown();
+  });
+});
+
+describe('standalone remote policy capacity declarations', () => {
+  it('passes the release room capacity declaration through unchanged', async () => {
+    const service = {
+      setupSchema: {
+        schema: { type: 'object', properties: {} },
+      },
+      roomCapacity: {
+        playerCountPath: ['options', 'playerCount'],
+        defaultPlayerCount: 2,
+      },
+    } as unknown as GameServiceDescription;
+    const release = {
+      service,
+      manifest: { modes: [] },
+      approvedModes: [],
+    } as unknown as ReleaseRecord;
+    const runtime = createStandaloneRemoteRuntime(
+      { platformId: 'platform' } as StandalonePlatformConfig,
+      {} as never,
+    );
+    expect(
+      (await runtime.resolvePolicy(release, {} as ReleaseBindingRecord))
+        .roomCapacity,
+    ).toEqual(service.roomCapacity);
   });
 });

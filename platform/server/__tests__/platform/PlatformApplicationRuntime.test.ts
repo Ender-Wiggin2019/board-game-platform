@@ -1,4 +1,5 @@
 import {
+  type BackendPort,
   contractError,
   type GameServiceDescription,
   type JsonValue,
@@ -35,7 +36,7 @@ import { PlatformApplicationRuntime } from '@/platform/PlatformApplicationRuntim
 import type { PlatformIdentity } from '@/platform/PlatformIdentity.js';
 
 type State = { owner: string; count: number };
-function gameModule(gameId: string, includeRoom = false) {
+function gameModule(gameId: string, includeRoom = false, roomMaxPlayers = 2) {
   const objectSchema = {
     schema: { type: 'object' as const, additionalProperties: true as const },
     version: 1,
@@ -69,7 +70,7 @@ function gameModule(gameId: string, includeRoom = false) {
               id: 'room',
               entry: 'room' as const,
               minPlayers: 1,
-              maxPlayers: 2,
+              maxPlayers: roomMaxPlayers,
               history: 'summary-and-replay' as const,
               platformRating: false,
               concurrency: 'revision' as const,
@@ -296,7 +297,7 @@ describe('registered platform application', () => {
   });
   it('runs a remote HTTP lifecycle without installing game code or storage in the platform', async () => {
     const platform = runtime([]);
-    const module = gameModule('alpha');
+    const module = gameModule('alpha', true, 4);
     const storage = new MemoryStorageDriver();
     const registry = new GameRegistry();
     registry.register(module);
@@ -324,6 +325,10 @@ describe('registered platform application', () => {
       },
       modes: module.modes,
       setupSchema: module.schemas.setup,
+      roomCapacity: {
+        playerCountPath: ['options', 'playerCount'],
+        defaultPlayerCount: 2,
+      },
     };
     const describeHost = host.describe.bind(host);
     vi.spyOn(host, 'describe').mockImplementation(async (request) => {
@@ -382,10 +387,67 @@ describe('registered platform application', () => {
           modeId: 'solo',
         }),
       ).toThrow();
-      expect(platform.catalog()).toHaveLength(1);
+      expect(platform.catalog().some((entry) => entry.gameId === 'alpha')).toBe(
+        true,
+      );
+      for (const playerCount of [2, 3, 4])
+        expect(
+          installed.capacity({
+            gameId: 'alpha',
+            releaseId: 'alpha-v1',
+            modeId: 'room',
+            setup: { options: { playerCount } },
+          } as unknown as PlatformRoom),
+        ).toBe(playerCount);
+      expect(
+        installed.capacity({
+          gameId: 'alpha',
+          releaseId: 'alpha-v1',
+          modeId: 'room',
+          setup: {},
+        } as unknown as PlatformRoom),
+      ).toBe(2);
       await expect(
         platform.registerRemoteGame(registration),
       ).rejects.toMatchObject({ envelope: { code: 'CONFLICT' } });
+      vi.spyOn(platform.identity, 'publicNames').mockResolvedValue(
+        new Map([
+          ['owner', 'owner'],
+          ['player', 'player'],
+        ]),
+      );
+      const room = await platform.rooms.createRoom('owner', {
+        gameId: 'alpha',
+        modeId: 'room',
+        releaseId: 'alpha-v1',
+        visibility: 'public',
+        setup: { options: { playerCount: 2 } },
+      });
+      const joined = await platform.rooms.joinRoom(
+        'player',
+        room.id,
+        room.revision,
+      );
+      const ownerReady = await platform.rooms.ready(
+        'owner',
+        room.id,
+        joined.revision,
+        true,
+      );
+      const playerReady = await platform.rooms.ready(
+        'player',
+        room.id,
+        ownerReady.revision,
+        true,
+      );
+      const startedRoom = await platform.admission.startRoom(
+        'owner',
+        room.id,
+        playerReady.revision,
+        'remote-room-start',
+      );
+      expect(startedRoom.state).toBe('active');
+      expect(startedRoom.route.gameId).toBe('alpha');
       const session = await start(platform, 'alpha');
       const view = await platform.views.view(reference, session.sessionId);
       expect(view.payload).toEqual({ count: 0 });
@@ -438,6 +500,125 @@ describe('registered platform application', () => {
       principalId: reference.principalId,
       active: true,
     });
+  });
+
+  it('resolves nested, legacy, and default remote room capacities', async () => {
+    const mode = {
+      id: 'room',
+      entry: 'room' as const,
+      minPlayers: 1,
+      maxPlayers: 4,
+      history: 'summary-and-replay' as const,
+      platformRating: false,
+      concurrency: 'revision' as const,
+    };
+    const setupSchema = {
+      name: 'capacity.setup',
+      version: 1,
+      schema: { type: 'object' as const, additionalProperties: true as const },
+    };
+    const install = async (
+      gameId: string,
+      descriptionOptions: Pick<GameServiceDescription, 'roomCapacity'>,
+      registrationOptions: { readonly playerCountField?: string } = {},
+    ) => {
+      const platform = runtime([]);
+      const description: GameServiceDescription = {
+        schemaVersion: 1,
+        platformId: 'test-platform',
+        gameId,
+        releaseId: `${gameId}-v1`,
+        backendBindingId: `${gameId}-binding`,
+        storageBindingId: `${gameId}-storage`,
+        ownershipEpoch: '1',
+        metadata: {
+          gameId,
+          name: gameId,
+          description: 'Capacity fixture',
+          themeId: gameId,
+        },
+        modes: [mode],
+        setupSchema,
+        ...(descriptionOptions.roomCapacity
+          ? { roomCapacity: descriptionOptions.roomCapacity }
+          : {}),
+      };
+      const backend = {
+        ready: vi.fn().mockResolvedValue({
+          ready: true,
+          description: {
+            protocolMajor: 1,
+            protocolMinor: 0,
+            features: ['runtime-description-v1'],
+            gameIds: [gameId],
+            releaseIds: [description.releaseId],
+            modes: [mode],
+            storageBindingIds: [description.storageBindingId],
+            service: description,
+          },
+        }),
+      } as unknown as BackendPort;
+      return platform.registerRemoteGame({
+        description,
+        backend,
+        identity: identity(gameId),
+        policy: { rating: null, validityPolicyVersion: 'capacity-v1' },
+        ...registrationOptions,
+      });
+    };
+    const nested = await install('nested', {
+      roomCapacity: {
+        playerCountPath: ['options', 'playerCount'],
+        defaultPlayerCount: 2,
+      },
+    });
+    for (const playerCount of [2, 3, 4])
+      expect(
+        nested.capacity({
+          gameId: 'nested',
+          releaseId: 'nested-v1',
+          modeId: 'room',
+          setup: { options: { playerCount } },
+        } as unknown as PlatformRoom),
+      ).toBe(playerCount);
+    expect(
+      nested.capacity({
+        gameId: 'nested',
+        releaseId: 'nested-v1',
+        modeId: 'room',
+        setup: {},
+      } as unknown as PlatformRoom),
+    ).toBe(2);
+    const legacy = await install(
+      'legacy',
+      {},
+      { playerCountField: 'playerCount' },
+    );
+    expect(
+      legacy.capacity({
+        gameId: 'legacy',
+        releaseId: 'legacy-v1',
+        modeId: 'room',
+        setup: { playerCount: 3 },
+      } as unknown as PlatformRoom),
+    ).toBe(3);
+    expect(() =>
+      legacy.capacity({
+        gameId: 'legacy',
+        releaseId: 'legacy-v1',
+        modeId: 'room',
+        setup: {},
+      } as unknown as PlatformRoom),
+    ).toThrow();
+    const fallback = await install('fallback', {});
+    expect(
+      fallback.capacity({
+        gameId: 'fallback',
+        releaseId: 'fallback-v1',
+        modeId: 'room',
+        setup: { options: { playerCount: 2 } },
+      } as unknown as PlatformRoom),
+    ).toBe(4);
   });
 
   it('shares account and directory while pinning game hosts, modes, and codecs independently', async () => {

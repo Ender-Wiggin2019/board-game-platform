@@ -148,6 +148,8 @@ export interface RemotePolicyResolution {
   readonly publicModes?: readonly string[];
   readonly access?: GameAccessRegistration;
   readonly playerCountField?: string;
+  /** A JSON declaration for a nested room setup player-count field. */
+  readonly roomCapacity?: GameServiceDescription['roomCapacity'];
 }
 
 /** Release-pinned JSON policy data handed to the platform settlement facade. */
@@ -244,6 +246,8 @@ export interface RemoteGameRegistration {
   readonly access?: GameAccessRegistration;
   /** A declared setup field, for games whose room capacity is a setup option. */
   readonly playerCountField?: string;
+  /** A declared nested setup path, preferred over the legacy top-level field. */
+  readonly roomCapacity?: GameServiceDescription['roomCapacity'];
   /** Required when a persistent release registry is configured. */
   readonly manifest?: ReleaseManifest;
   /** Platform-approved feature projection; never inferred from the manifest. */
@@ -315,6 +319,48 @@ function isCancelledControlFact(envelope: {
       ((payload as Record<string, unknown>).status === undefined ||
         (payload as Record<string, unknown>).status === 'cancelled'),
   );
+}
+
+function readJsonObjectPath(
+  root: unknown,
+  path: readonly string[],
+): { readonly found: boolean; readonly value?: unknown } {
+  let current: unknown = root;
+  for (const segment of path) {
+    if (
+      current === null ||
+      typeof current !== 'object' ||
+      Array.isArray(current) ||
+      !Object.hasOwn(current, segment)
+    )
+      return { found: false };
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return { found: true, value: current };
+}
+
+function remoteRoomPlayerCount(
+  setup: unknown,
+  mode: { readonly minPlayers: number; readonly maxPlayers: number },
+  roomCapacity: GameServiceDescription['roomCapacity'],
+  legacyPlayerCountField: string | undefined,
+): unknown {
+  if (roomCapacity) {
+    const located = readJsonObjectPath(setup, roomCapacity.playerCountPath);
+    return located.found
+      ? located.value
+      : (roomCapacity.defaultPlayerCount ?? mode.maxPlayers);
+  }
+  if (
+    legacyPlayerCountField &&
+    setup !== null &&
+    typeof setup === 'object' &&
+    !Array.isArray(setup)
+  )
+    return Object.hasOwn(setup, legacyPlayerCountField)
+      ? (setup as Record<string, unknown>)[legacyPlayerCountField]
+      : undefined;
+  return mode.maxPlayers;
 }
 
 function unavailableRemoteBackend(): BackendPort {
@@ -1132,6 +1178,7 @@ export class PlatformApplicationRuntime {
     }
     const policy = structuredClone(registration.policy);
     const playerCountField = registration.playerCountField;
+    const roomCapacity = registration.roomCapacity ?? description.roomCapacity;
     const installed: InstalledRemoteGame = {
       gameId: description.gameId,
       releaseId: description.releaseId,
@@ -1168,13 +1215,12 @@ export class PlatformApplicationRuntime {
             'INVALID_REQUEST',
             'platform.remote.mode_unavailable',
           );
-        const count =
-          playerCountField &&
-          room.setup &&
-          typeof room.setup === 'object' &&
-          !Array.isArray(room.setup)
-            ? (room.setup as JsonObject)[playerCountField]
-            : mode.maxPlayers;
+        const count = remoteRoomPlayerCount(
+          room.setup,
+          mode,
+          roomCapacity,
+          playerCountField,
+        );
         if (
           typeof count !== 'number' ||
           !Number.isSafeInteger(count) ||
@@ -1536,6 +1582,7 @@ export class PlatformApplicationRuntime {
         ...(policy.playerCountField
           ? { playerCountField: policy.playerCountField }
           : {}),
+        ...(policy.roomCapacity ? { roomCapacity: policy.roomCapacity } : {}),
         manifest: release.manifest,
         approvedFeatures: release.approvedFeatures,
         ...(release.policyBundle === undefined

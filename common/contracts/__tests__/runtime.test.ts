@@ -78,6 +78,32 @@ describe('game service descriptions', () => {
     expect(GAME_SERVICE_DESCRIPTION_VERSION).toBe(1);
   });
 
+  it('accepts a nested room player-count declaration', () => {
+    expect(() =>
+      assertGameServiceDescription({
+        ...description,
+        roomCapacity: {
+          playerCountPath: ['options', 'playerCount'],
+          defaultPlayerCount: 2,
+        },
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects unsafe room player-count paths and invalid defaults', () => {
+    for (const roomCapacity of [
+      { playerCountPath: [] },
+      { playerCountPath: ['options', '../playerCount'] },
+      { playerCountPath: ['constructor'] },
+      { playerCountPath: ['options'], defaultPlayerCount: 0 },
+      { playerCountPath: ['options'], defaultPlayerCount: 1.5 },
+    ]) {
+      expect(() =>
+        assertGameServiceDescription({ ...description, roomCapacity }),
+      ).toThrow();
+    }
+  });
+
   it('rejects unknown fields, identity mismatches and duplicate entries', () => {
     expect(() =>
       assertGameServiceDescription({

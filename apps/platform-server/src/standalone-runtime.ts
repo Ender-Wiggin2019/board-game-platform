@@ -378,6 +378,9 @@ function remotePolicy(
     },
     publicModes: release.approvedModes,
     ...(playerCountField ? { playerCountField } : {}),
+    ...(release.service.roomCapacity
+      ? { roomCapacity: release.service.roomCapacity }
+      : {}),
   };
 }
 

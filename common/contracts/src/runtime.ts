@@ -22,6 +22,12 @@ export interface GameServiceReplayDescription {
   readonly framesQueryType: string;
 }
 
+/** JSON declaration for locating a room's requested player count in setup. */
+export interface GameServiceRoomCapacityDescription {
+  readonly playerCountPath: readonly string[];
+  readonly defaultPlayerCount?: number;
+}
+
 export interface GameServiceCommandDescription {
   readonly key: string;
   readonly operation: 'command' | 'undo' | 'rollback';
@@ -40,6 +46,7 @@ export interface GameServiceDescription {
   readonly metadata: GameMetadata;
   readonly modes: readonly ModeDefinition[];
   readonly setupSchema: SchemaDescriptor;
+  readonly roomCapacity?: GameServiceRoomCapacityDescription;
   readonly replay?: GameServiceReplayDescription;
   readonly commands?: readonly GameServiceCommandDescription[];
   readonly controllers?: RoomControllerCapabilities;
@@ -56,6 +63,7 @@ const MAX_MODES = 64;
 const MAX_COMMANDS = 64;
 const MAX_CONTROLLERS = 64;
 const MAX_PRESETS = 32;
+const MAX_PLAYER_COUNT_PATH = 16;
 
 const INVALID_DESCRIPTION = 'contracts.runtime.invalidDescription';
 
@@ -187,6 +195,39 @@ function assertReplay(
   assertIdentifier(value.framesQueryType, `${path}.framesQueryType`);
 }
 
+function assertRoomCapacity(
+  value: unknown,
+  path: string,
+): asserts value is GameServiceRoomCapacityDescription {
+  assertObject(value, path);
+  assertKeys(value, ['playerCountPath', 'defaultPlayerCount'], path);
+  if (
+    !Array.isArray(value.playerCountPath) ||
+    value.playerCountPath.length === 0 ||
+    value.playerCountPath.length > MAX_PLAYER_COUNT_PATH
+  )
+    invalid(`${path}.playerCountPath`);
+  for (let index = 0; index < value.playerCountPath.length; index += 1) {
+    const segment = value.playerCountPath[index];
+    if (
+      typeof segment !== 'string' ||
+      !/^[A-Za-z_][A-Za-z0-9_]*$/u.test(segment) ||
+      segment === '__proto__' ||
+      segment === 'prototype' ||
+      segment === 'constructor'
+    )
+      invalid(`${path}.playerCountPath[${index}]`);
+  }
+  const defaultPlayerCount = value.defaultPlayerCount;
+  if (
+    defaultPlayerCount !== undefined &&
+    (typeof defaultPlayerCount !== 'number' ||
+      !Number.isSafeInteger(defaultPlayerCount) ||
+      defaultPlayerCount < 1)
+  )
+    invalid(`${path}.defaultPlayerCount`);
+}
+
 function assertPreset(
   value: unknown,
   path: string,
@@ -312,6 +353,7 @@ export function assertGameServiceDescription(
       'metadata',
       'modes',
       'setupSchema',
+      'roomCapacity',
       'replay',
       'commands',
       'controllers',
@@ -335,6 +377,8 @@ export function assertGameServiceDescription(
   assertMetadata(value.metadata, gameId, '$.metadata');
   assertModes(value.modes, '$.modes');
   assertSchemaDescriptorStrict(value.setupSchema, '$.setupSchema');
+  if (value.roomCapacity !== undefined)
+    assertRoomCapacity(value.roomCapacity, '$.roomCapacity');
   if (value.replay !== undefined) assertReplay(value.replay, '$.replay');
   if (value.commands !== undefined)
     assertCommands(value.commands, '$.commands');
