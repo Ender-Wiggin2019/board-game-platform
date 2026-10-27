@@ -1,4 +1,10 @@
-import type { CSSProperties, ReactNode } from 'react';
+import { GamePortalProvider } from '@board-game/components';
+import {
+  type CSSProperties,
+  type ReactNode,
+  useCallback,
+  useState,
+} from 'react';
 import type { GameClientRegistration } from './GameClientRegistration.js';
 
 /** Installs a game's presentation contexts and scoped theme around its contribution. */
@@ -11,6 +17,10 @@ export function GameClientProviders({
 }): React.JSX.Element {
   const Providers = registration?.providers;
   const content = Providers ? <Providers>{children}</Providers> : children;
+  const [container, setContainer] = useState<HTMLDivElement | null>(null);
+  const setContainerRef = useCallback((node: HTMLDivElement | null) => {
+    setContainer((current) => (current === node ? current : node));
+  }, []);
   if (!registration) return <>{content}</>;
   const style = {
     ...registration.theme?.tokens,
@@ -21,6 +31,7 @@ export function GameClientProviders({
   return (
     <div
       className='contents'
+      ref={setContainerRef}
       data-game={registration.gameId}
       data-game-release={
         registration.releaseId
@@ -32,7 +43,7 @@ export function GameClientProviders({
       data-game-theme-scope={registration.theme?.scope}
       style={style}
     >
-      {content}
+      <GamePortalProvider container={container}>{content}</GamePortalProvider>
     </div>
   );
 }

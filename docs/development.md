@@ -45,3 +45,47 @@ only public package exports in `game.json`. Use `workspace:*` for framework and
 same-game dependencies. Do not create a second workspace lockfile inside the
 example. A game example must remain removable without changing platform
 runtime code.
+
+## Release-scoped client overlays
+
+Game-owned dialogs, menus, and other overlays must use the public
+`GamePortal` API. The platform host mounts `GamePortalProvider` around each
+release and supplies that release's root and theme tokens; do not portal
+directly to `document.body` from a remote client.
+
+```tsx
+import type { ReactNode } from 'react';
+import { GamePortal } from '@board-game/components';
+
+export function RulesDialog({ children }: { children: ReactNode }) {
+  return (
+    <GamePortal>
+      <div className='game-dialog' role='dialog'>
+        {children}
+      </div>
+    </GamePortal>
+  );
+}
+```
+
+Radix portals can use the same root explicitly:
+
+```tsx
+import { useGamePortalContainer } from '@board-game/components';
+
+const container = useGamePortalContainer();
+if (container === null) return null; // host release root is not ready
+return <Dialog.Portal container={container}>{children}</Dialog.Portal>;
+```
+
+`null` means a provider is mounted but the host root is not ready; it must not
+fall back to `document.body`. `undefined` means no provider was supplied (the
+native-client case), so `GamePortal` and Radix may use the body fallback.
+The client artifact builder adds an `@scope` boundary for the release root.
+Write game selectors normally and consume the supplied theme tokens:
+
+```css
+.game-dialog {
+  border-color: var(--game-palette-accent, currentColor);
+}
+```

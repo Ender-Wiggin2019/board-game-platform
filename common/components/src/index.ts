@@ -7,6 +7,7 @@ export * from './GameClientRegistration.js';
 export * from './GameFrame.js';
 export * from './GameLayout.js';
 export * from './GamePlayerSummary.js';
+export * from './GamePortal.js';
 export * from './GameSeatHandoff.js';
 export * from './GameSessionControls.js';
 export * from './GameSessionProvider.js';
