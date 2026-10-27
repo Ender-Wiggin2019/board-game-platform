@@ -17,8 +17,10 @@ import {
 import type {
   PlatformApplicationRuntime,
   RemoteDailyChallengeReleaseInput,
+  RemoteSettlementReleaseInput,
 } from '@/platform/PlatformApplicationRuntime.js';
 import { PlatformGameServices } from '@/platform/PlatformGameServices.js';
+import type { RemoteSettlementPolicyBundle } from '@/platform/remote-settlement.js';
 
 const participants = [
   { principalId: 'player-a', seatId: 'seat-a' },
@@ -69,6 +71,148 @@ function ratingPolicy(releaseId: string): RatingPolicy {
     progressionPolicyVersion: `progression-${releaseId}`,
     initialState: () => ({}),
     calculate: () => [],
+  };
+}
+
+function remoteMetadata(gameId = 'brass') {
+  return {
+    gameId,
+    name: gameId === 'brass' ? 'BRASS' : 'Other game',
+    description: 'Industrial network building.',
+    themeId: gameId,
+  } as const;
+}
+
+function remoteBundle(options: {
+  readonly releaseId: string;
+  readonly gameId?: string;
+  readonly beta?: number;
+  readonly reorderRatingJson?: boolean;
+}): RemoteSettlementPolicyBundle {
+  const gameId = options.gameId ?? 'brass';
+  const parameters = options.reorderRatingJson
+    ? {
+        minDelta: 1e-6,
+        drawProbability: 0.1,
+        tau: 0.1,
+        beta: options.beta ?? 5,
+        sigma: 25 / 3,
+        mu: 25,
+      }
+    : {
+        mu: 25,
+        sigma: 25 / 3,
+        beta: options.beta ?? 5,
+        tau: 0.1,
+        drawProbability: 0.1,
+        minDelta: 1e-6,
+      };
+  const stars = options.reorderRatingJson
+    ? {
+        legendQualifyingGames: 10,
+        legendThreshold: 73,
+        rewards: { '2': [1, -1], '3': [1, 0, -1], '4': [2, 1, 0, -1] },
+      }
+    : {
+        rewards: { '2': [1, -1], '3': [1, 0, -1], '4': [2, 1, 0, -1] },
+        legendThreshold: 73,
+        legendQualifyingGames: 10,
+      };
+  return {
+    schemaVersion: 1,
+    gameId,
+    releaseId: options.releaseId,
+    approvedModes: ['ranked'],
+    rating: {
+      poolId: `${gameId}-ranked`,
+      policyVersion: 'shared-rating-v1',
+      progressionPolicyVersion: 'shared-stars-v1',
+      algorithm: 'trueskill-stars-v1',
+      parameters,
+      stars,
+    },
+    rewards: {
+      definitionVersion: 'shared-rewards-v1',
+      asset: `${gameId}-credits`,
+      quantities: [100, 50, 25, 10],
+      excludeControllers: ['ai', 'automa', 'hotseat', 'bot'],
+    },
+    achievements: {
+      definitionVersion: 'shared-achievements-v1',
+      definitions: [
+        {
+          achievementId: 'first-game',
+          title: 'First',
+          description: 'First game',
+          tier: 'first-game',
+          target: 1,
+        },
+      ],
+      excludeControllers: ['ai', 'automa', 'hotseat', 'bot'],
+    },
+    messages: {
+      completion: {
+        templateId: 'completion',
+        title: 'Done',
+        body: 'The game is complete.',
+        actionLabel: 'View',
+        actionPath: '/game/{sessionId}/end',
+      },
+    },
+  };
+}
+
+function remoteService(
+  gameId: string,
+  releaseId: string,
+): GameServiceDescription {
+  return {
+    schemaVersion: 1,
+    platformId: 'platform-test',
+    gameId,
+    releaseId,
+    backendBindingId: `${gameId}-backend-${releaseId}`,
+    storageBindingId: `${gameId}-storage-${releaseId}`,
+    ownershipEpoch: `epoch-${releaseId}`,
+    metadata: remoteMetadata(gameId),
+    modes: [
+      {
+        id: 'ranked',
+        entry: 'room',
+        minPlayers: 2,
+        maxPlayers: 4,
+        history: 'summary-and-replay',
+        platformRating: true,
+        concurrency: 'revision',
+      },
+    ],
+    setupSchema: {
+      name: 'setup',
+      version: 1,
+      schema: { type: 'object' },
+    },
+  };
+}
+
+function remoteInput(
+  bundle: RemoteSettlementPolicyBundle,
+): RemoteSettlementReleaseInput {
+  return {
+    gameId: bundle.gameId,
+    releaseId: bundle.releaseId,
+    metadata: remoteMetadata(bundle.gameId),
+    service: remoteService(bundle.gameId, bundle.releaseId),
+    approvedModes: [...bundle.approvedModes],
+    approvedPolicyVersions: [
+      { kind: 'rating', version: bundle.rating.policyVersion },
+      {
+        kind: 'progression',
+        version: bundle.rating.progressionPolicyVersion,
+      },
+      { kind: 'reward', version: bundle.rewards.definitionVersion },
+      { kind: 'achievement', version: bundle.achievements.definitionVersion },
+    ],
+    policyBundle: bundle as unknown as JsonValue,
   };
 }
 
@@ -197,6 +341,7 @@ function testPlatform() {
       consumers.push({ name, handler, ...(gameId ? { gameId } : {}) });
     },
   );
+  const setRemoteSettlementReleaseHook = vi.fn();
   const platform = {
     options: { db, pool: { query: statisticsQuery } as unknown as Pool },
     admissionStore,
@@ -207,6 +352,7 @@ function testPlatform() {
     })),
     registerRecoveryHook: vi.fn(),
     setRemoteDailyChallengeReleaseHook,
+    setRemoteSettlementReleaseHook,
     registerFactConsumer,
     notifyAccountsChanged: accountChanges,
   } as unknown as PlatformApplicationRuntime;
@@ -219,10 +365,120 @@ function testPlatform() {
     accountChanges,
     statisticsQuery,
     setRemoteDailyChallengeReleaseHook,
+    setRemoteSettlementReleaseHook,
   };
 }
 
 describe('PlatformGameServices retained releases', () => {
+  it('reuses an unchanged remote rating definition across releases', async () => {
+    const fixture = testPlatform();
+    const hook = fixture.setRemoteSettlementReleaseHook.mock.calls[0]?.[0] as (
+      input: RemoteSettlementReleaseInput,
+    ) => Promise<void>;
+    const first = remoteBundle({ releaseId: 'remote-v1' });
+    const reordered = remoteBundle({
+      releaseId: 'remote-v2',
+      reorderRatingJson: true,
+    });
+
+    await hook(remoteInput(first));
+    const policies = (
+      fixture.services as unknown as {
+        readonly policies: Map<string, RatingPolicy>;
+      }
+    ).policies;
+    const firstPolicy = policies.get('["shared-rating-v1","shared-stars-v1"]');
+    await expect(
+      hook(
+        remoteInput(
+          remoteBundle({
+            releaseId: 'remote-v1',
+            beta: 6,
+          }),
+        ),
+      ),
+    ).rejects.toThrow('platform.game.rating_policy_registered');
+    await expect(hook(remoteInput(reordered))).resolves.toBeUndefined();
+
+    expect(fixture.services.registry.get('brass', 'remote-v1')).not.toBeNull();
+    expect(fixture.services.registry.get('brass', 'remote-v2')).not.toBeNull();
+    expect(policies.get('["shared-rating-v1","shared-stars-v1"]')).toBe(
+      firstPolicy,
+    );
+    expect(fixture.platform.releaseGame).toHaveBeenCalledWith(
+      'brass',
+      'remote-v2',
+    );
+  });
+
+  it('rejects changed remote definitions and cross-game policy collisions before registration', async () => {
+    const fixture = testPlatform();
+    const hook = fixture.setRemoteSettlementReleaseHook.mock.calls[0]?.[0] as (
+      input: RemoteSettlementReleaseInput,
+    ) => Promise<void>;
+    await hook(
+      remoteInput(
+        remoteBundle({
+          releaseId: 'remote-v1',
+        }),
+      ),
+    );
+
+    await expect(
+      hook(
+        remoteInput(
+          remoteBundle({
+            releaseId: 'remote-v2',
+            beta: 6,
+          }),
+        ),
+      ),
+    ).rejects.toThrow('platform.game.rating_policy_registered');
+    expect(fixture.services.registry.get('brass', 'remote-v2')).toBeNull();
+
+    await expect(
+      hook(
+        remoteInput(
+          remoteBundle({
+            gameId: 'other-game',
+            releaseId: 'remote-other-v1',
+          }),
+        ),
+      ),
+    ).rejects.toThrow('platform.game.rating_policy_registered');
+    expect(
+      fixture.services.registry.get('other-game', 'remote-other-v1'),
+    ).toBeNull();
+  });
+
+  it('keeps native policy duplicate registration strict after remote reuse', async () => {
+    const fixture = testPlatform();
+    const hook = fixture.setRemoteSettlementReleaseHook.mock.calls[0]?.[0] as (
+      input: RemoteSettlementReleaseInput,
+    ) => Promise<void>;
+    await hook(
+      remoteInput(
+        remoteBundle({
+          releaseId: 'remote-v1',
+        }),
+      ),
+    );
+
+    expect(() =>
+      fixture.services.register(registration('native-v1', vi.fn()), {
+        ratingPolicies: [
+          {
+            policyVersion: 'shared-rating-v1',
+            progressionPolicyVersion: 'shared-stars-v1',
+            initialState: () => ({}),
+            calculate: () => [],
+          },
+        ],
+      }),
+    ).toThrow('platform.game.rating_policy_registered');
+    expect(fixture.services.registry.get('brass', 'native-v1')).toBeNull();
+  });
+
   it('registers approved remote daily metadata without RPC and uses the current exact-release backend', async () => {
     const fixture = testPlatform();
     const oldRpc = vi.fn(async () => ({

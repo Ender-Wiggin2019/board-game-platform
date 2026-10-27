@@ -1,5 +1,6 @@
 import {
   assertGameResult,
+  canonicalStableStringify,
   contractError,
   isAutomatedParticipant,
   type JsonValue,
@@ -76,6 +77,20 @@ export interface GameServiceRegistration {
   };
 }
 
+interface RemoteRatingPolicyDefinition {
+  readonly gameId: string;
+  readonly key: string;
+  readonly signature: string;
+  readonly policy: RatingPolicy;
+}
+
+function ratingPolicyKey(
+  policyVersion: string,
+  progressionPolicyVersion: string,
+): string {
+  return canonicalStableStringify([policyVersion, progressionPolicyVersion]);
+}
+
 /** Shared persistence and trusted completion processing for registered games. */
 export class PlatformGameServices {
   readonly gameAccess?: GameAccessService;
@@ -89,6 +104,10 @@ export class PlatformGameServices {
   private readonly db: NodePgDatabase;
   private readonly pool: Pool;
   private readonly policies = new Map<string, RatingPolicy>();
+  private readonly remotePolicyDefinitions = new Map<
+    string,
+    { readonly gameId: string; readonly signature: string }
+  >();
   private readonly remoteSettlements = new Map<
     string,
     RemoteSettlementHandler
@@ -123,7 +142,7 @@ export class PlatformGameServices {
         admissions: platform.admissionStore,
         policies: {
           get: (version, progression) =>
-            this.policies.get(JSON.stringify([version, progression])) ?? null,
+            this.policies.get(ratingPolicyKey(version, progression)) ?? null,
         },
       }),
     });
@@ -211,7 +230,7 @@ export class PlatformGameServices {
   ): Promise<void> {
     if (input.policyBundle === undefined) return;
     const key = this.remoteSettlementKey(input.gameId, input.releaseId);
-    if (this.remoteSettlements.has(key)) return;
+    const alreadyInstalled = this.remoteSettlements.has(key);
     const policyBundle =
       input.policyBundle as unknown as RemoteSettlementPolicyBundle;
     const handler = createRemoteSettlementHandler({
@@ -257,10 +276,23 @@ export class PlatformGameServices {
         'INVALID_REQUEST',
         'platform.remote.settlement_policy_mode_approval_required',
       );
-    this.register(handler.registration, {
-      ratingPolicies: handler.ratingPolicies,
-      messages: handler.messages,
-    });
+    const remoteDefinitions = this.remoteRatingPolicyDefinitions(
+      input.gameId,
+      policyBundle,
+      handler.ratingPolicies,
+    );
+    if (alreadyInstalled) {
+      this.prepareRemotePolicies(remoteDefinitions);
+      return;
+    }
+    this.registerInternal(
+      handler.registration,
+      {
+        ratingPolicies: handler.ratingPolicies,
+        messages: handler.messages,
+      },
+      remoteDefinitions,
+    );
     this.remoteSettlements.set(key, handler);
     if (policyBundle.dailyChallengeRewards)
       this.remoteDailyRewards.set(
@@ -288,6 +320,14 @@ export class PlatformGameServices {
     registration: GameCapabilityRegistration,
     options: GameServiceRegistration = {},
   ): void {
+    this.registerInternal(registration, options);
+  }
+
+  private registerInternal(
+    registration: GameCapabilityRegistration,
+    options: GameServiceRegistration,
+    remoteDefinitions?: readonly RemoteRatingPolicyDefinition[],
+  ): void {
     const gameId = registration.metadata.gameId;
     const game = this.platform.releaseGame(gameId, registration.releaseId);
     if (game.releaseId !== registration.releaseId)
@@ -295,7 +335,10 @@ export class PlatformGameServices {
         'CONFLICT',
         'platform.game.registration.release_mismatch',
       );
-    const policies = this.preparePolicies(options.ratingPolicies ?? []);
+    const policies =
+      remoteDefinitions === undefined
+        ? this.preparePolicies(options.ratingPolicies ?? [])
+        : this.prepareRemotePolicies(remoteDefinitions);
     if (
       options.completionMessage &&
       !options.messages?.[options.completionMessage.templateId]
@@ -322,47 +365,54 @@ export class PlatformGameServices {
     this.installPolicies(policies);
     if (options.messages && !this.messages.hasGame(gameId))
       this.messages.registerGame(gameId, options.messages);
-    if (!options.settleCompletions) return;
-    this.platform.registerFactConsumer(
-      `platform:${gameId}:${registration.releaseId}:capabilities:v1`,
-      async (envelope) => {
-        if (envelope.kind !== 'SessionCompleted') return;
-        const completion = await this.completion(envelope);
-        const hasSyntheticParticipant = completion.admission.participants.some(
-          (participant) =>
-            isAutomatedParticipant(participant) ||
-            participant.controller === 'hotseat',
-        );
-        const isDailyChallenge = this.dailyChallenges.isDailyChallenge(
-          completion.route.gameId,
-          completion.route.releaseId,
-          completion.route.modeId,
-        );
-        // Daily scores have their own idempotent leaderboard; never fan them
-        // into ranked, wallet or shared reward settlement.
-        if (!hasSyntheticParticipant && !isDailyChallenge)
-          await this.capabilities.complete(completion);
-        if (options.completionMessage) {
-          const accountIds = new Set(
-            completion.admission.participants
-              .map(participantAccountId)
-              .filter(
-                (accountId): accountId is string => accountId !== undefined,
-              ),
+    if (options.settleCompletions) {
+      this.platform.registerFactConsumer(
+        `platform:${gameId}:${registration.releaseId}:capabilities:v1`,
+        async (envelope) => {
+          if (envelope.kind !== 'SessionCompleted') return;
+          const completion = await this.completion(envelope);
+          const hasSyntheticParticipant =
+            completion.admission.participants.some(
+              (participant) =>
+                isAutomatedParticipant(participant) ||
+                participant.controller === 'hotseat',
+            );
+          const isDailyChallenge = this.dailyChallenges.isDailyChallenge(
+            completion.route.gameId,
+            completion.route.releaseId,
+            completion.route.modeId,
           );
-          for (const principalId of accountIds)
-            await this.messages.publish({
-              gameId,
-              templateId: options.completionMessage.templateId,
-              principalId,
-              sourceId: `${completion.route.sessionId}:${completion.resultRevision}`,
-              payload: options.completionMessage.payload(completion),
-            });
-        }
-      },
-      gameId,
-      registration.releaseId,
-    );
+          // Daily scores have their own idempotent leaderboard; never fan them
+          // into ranked, wallet or shared reward settlement.
+          if (!hasSyntheticParticipant && !isDailyChallenge)
+            await this.capabilities.complete(completion);
+          if (options.completionMessage) {
+            const accountIds = new Set(
+              completion.admission.participants
+                .map(participantAccountId)
+                .filter(
+                  (accountId): accountId is string => accountId !== undefined,
+                ),
+            );
+            for (const principalId of accountIds)
+              await this.messages.publish({
+                gameId,
+                templateId: options.completionMessage.templateId,
+                principalId,
+                sourceId: `${completion.route.sessionId}:${completion.resultRevision}`,
+                payload: options.completionMessage.payload(completion),
+              });
+          }
+        },
+        gameId,
+        registration.releaseId,
+      );
+    }
+    for (const definition of remoteDefinitions ?? [])
+      this.remotePolicyDefinitions.set(definition.key, {
+        gameId: definition.gameId,
+        signature: definition.signature,
+      });
   }
 
   /** Reads the one account-level snapshot consumed by the platform shell. */
@@ -543,10 +593,10 @@ export class PlatformGameServices {
   ): readonly (readonly [string, RatingPolicy])[] {
     const pending = new Map<string, RatingPolicy>();
     for (const policy of policies) {
-      const key = JSON.stringify([
+      const key = ratingPolicyKey(
         policy.policyVersion,
         policy.progressionPolicyVersion,
-      ]);
+      );
       if (this.policies.has(key) || pending.has(key))
         throw contractError(
           'CONFLICT',
@@ -555,6 +605,78 @@ export class PlatformGameServices {
       pending.set(key, policy);
     }
     return [...pending.entries()];
+  }
+
+  private prepareRemotePolicies(
+    definitions: readonly RemoteRatingPolicyDefinition[],
+  ): readonly (readonly [string, RatingPolicy])[] {
+    const pending = new Map<string, RatingPolicy>();
+    for (const definition of definitions) {
+      const existing = this.remotePolicyDefinitions.get(definition.key);
+      if (existing) {
+        if (
+          existing.gameId !== definition.gameId ||
+          existing.signature !== definition.signature
+        )
+          throw contractError(
+            'CONFLICT',
+            'platform.game.rating_policy_registered',
+          );
+        continue;
+      }
+      if (this.policies.has(definition.key) || pending.has(definition.key))
+        throw contractError(
+          'CONFLICT',
+          'platform.game.rating_policy_registered',
+        );
+      pending.set(definition.key, definition.policy);
+    }
+    return [...pending.entries()];
+  }
+
+  private remoteRatingPolicyDefinitions(
+    gameId: string,
+    bundle: RemoteSettlementPolicyBundle,
+    policies: readonly RatingPolicy[],
+  ): readonly RemoteRatingPolicyDefinition[] {
+    const specs = [
+      {
+        poolId: bundle.rating.poolId,
+        policyVersion: bundle.rating.policyVersion,
+        progressionPolicyVersion: bundle.rating.progressionPolicyVersion,
+      },
+      ...(bundle.rating.policies ?? []),
+    ];
+    if (specs.length !== policies.length)
+      throw contractError('CONFLICT', 'platform.game.rating_policy_registered');
+    return policies.map((policy, index) => {
+      const spec = specs[index];
+      if (
+        !spec ||
+        policy.policyVersion !== spec.policyVersion ||
+        policy.progressionPolicyVersion !== spec.progressionPolicyVersion
+      )
+        throw contractError(
+          'CONFLICT',
+          'platform.game.rating_policy_registered',
+        );
+      return {
+        gameId,
+        key: ratingPolicyKey(spec.policyVersion, spec.progressionPolicyVersion),
+        signature: canonicalStableStringify({
+          gameId,
+          spec: {
+            poolId: spec.poolId,
+            policyVersion: spec.policyVersion,
+            progressionPolicyVersion: spec.progressionPolicyVersion,
+          },
+          algorithm: bundle.rating.algorithm,
+          parameters: bundle.rating.parameters,
+          stars: bundle.rating.stars,
+        }),
+        policy,
+      };
+    });
   }
 
   private installPolicies(
