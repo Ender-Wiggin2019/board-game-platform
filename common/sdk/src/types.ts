@@ -92,6 +92,12 @@ export interface CompletionInfo {
   readonly progress?: JsonValue;
 }
 
+/** Context supplied when a terminal state emits durable game-owned facts. */
+export interface TerminalFactsContext {
+  readonly status: 'completed' | 'cancelled';
+  readonly logicalTime: number;
+}
+
 /** One server-side consumable required before a command can execute. */
 export interface CommandResourceRequirement {
   readonly namespace: string;
@@ -148,6 +154,11 @@ export interface GameModule<
   readonly collectFacts: (
     before: Readonly<S>,
     transition: Transition<S, Event>,
+  ) => readonly JsonValue[];
+  /** Optional pure facts that survive terminal history retirement. */
+  readonly terminalFacts?: (
+    state: Readonly<S>,
+    context: TerminalFactsContext,
   ) => readonly JsonValue[];
   /** Optional setup event log for modes that retain private event history. */
   readonly initialEvents?: (state: Readonly<S>) => readonly Event[];

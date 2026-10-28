@@ -1,4 +1,10 @@
-import type { CommandPrecondition, JsonValue } from '@board-game/contracts';
+import type {
+  CommandPrecondition,
+  GameServiceStatisticsDescription,
+  GameStatisticsServiceRequest,
+  GameStatisticsServiceResponse,
+  JsonValue,
+} from '@board-game/contracts';
 import type {
   CommandInput,
   CommandResponse,
@@ -101,6 +107,14 @@ export interface GameFactConsumer {
   readonly consume: (envelope: InboxEnvelope) => Promise<void>;
 }
 
+/** Game-owned implementation behind the authenticated statistics RPC. */
+export interface GameStatisticsService {
+  readonly description: GameServiceStatisticsDescription;
+  readonly query: (
+    request: GameStatisticsServiceRequest,
+  ) => Promise<GameStatisticsServiceResponse>;
+}
+
 export interface GameRecoveryHook {
   readonly key: string;
   readonly recover: () => Promise<void>;
@@ -115,6 +129,8 @@ export interface GameServerServices<
   readonly replay?: GameReplayService;
   /** Optional game-owned daily challenge RPC implementation. */
   readonly dailyChallenge?: GameDailyChallengeService;
+  /** Optional game-owned native statistics RPC implementation. */
+  readonly statistics?: GameStatisticsService;
   readonly view?: GameViewService;
   readonly facts?: readonly GameFactConsumer[];
   readonly recovery?: readonly GameRecoveryHook[];

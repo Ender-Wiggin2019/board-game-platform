@@ -22,6 +22,13 @@ export interface GameRuntimeConfiguration {
     readonly namespace: string;
     readonly maxConnections?: number;
   };
+  /** Optional game-owned statistics database; never a platform business DB. */
+  readonly statisticsStorage?: {
+    readonly driver: 'postgres';
+    readonly urlEnv: string;
+    readonly namespace: string;
+    readonly maxConnections?: number;
+  };
   readonly replay: {
     readonly enabled: boolean;
     readonly source: 'game-storage';
@@ -105,6 +112,18 @@ export const GAME_RUNTIME_CONFIGURATION_SCHEMA: SchemaDescriptor = {
         },
         ['driver', 'namespace'],
       ),
+      statisticsStorage: object(
+        {
+          driver: { type: 'string', enum: ['postgres'] },
+          urlEnv: environmentKey,
+          namespace: {
+            type: 'string',
+            pattern: '^[A-Za-z_][A-Za-z0-9_]{0,39}$',
+          },
+          maxConnections: { type: 'integer', minimum: 1, maximum: 100 },
+        },
+        ['driver', 'urlEnv', 'namespace'],
+      ),
       replay: object({
         enabled: { type: 'boolean' },
         source: { type: 'string', enum: ['game-storage'] },
@@ -172,6 +191,15 @@ export function assertGameRuntimeConfiguration(
     throw contractError(
       'INVALID_REQUEST',
       'runtime.config.storage_url_reference',
+    );
+  if (
+    configuration.statisticsStorage !== undefined &&
+    configuration.statisticsStorage.namespace ===
+      configuration.storage.namespace
+  )
+    throw contractError(
+      'INVALID_REQUEST',
+      'runtime.config.statistics_namespace_conflict',
     );
   if (
     configuration.platformConnection.issuer !==

@@ -15,8 +15,9 @@ Prepare a deployment directory containing:
 
 Set `PLATFORM_CONFIG_PATH`, `PLATFORM_LOCK_PATH`, and
 `PLATFORM_WORKSPACE_ROOT` when these files are outside the process directory.
-Set `PLATFORM_DATABASE_URL` explicitly. The platform database is separate from
-any game database.
+Set `PLATFORM_DATABASE_URL` explicitly. Each game uses its own database role
+and schemas; it may select a separate database or share the same PostgreSQL
+database without access to platform-owned tables.
 
 Run the schema migration as a one-shot process before starting the HTTP server:
 
@@ -51,6 +52,33 @@ enable implicit startup migration. This public framework does not prescribe a
 host, registry, credential, or deployment URL.
 
 ## Health and routing
+
+Game runtime configuration can select a stable native statistics store:
+
+```json
+{
+  "statisticsStorage": {
+    "driver": "postgres",
+    "urlEnv": "GAME_STATISTICS_DATABASE_URL",
+    "namespace": "game_statistics",
+    "maxConnections": 5
+  }
+}
+```
+
+The referenced URL may address the game's existing database or a separately
+provisioned database, using a game-owned role. When omitted, the game runner
+reuses its session pool and `<storage.namespace>_statistics`. A stable explicit
+namespace preserves compatible statistics across release changes while
+concurrent releases retain separate session/outbox namespaces. The game owns
+projection migrations and query implementations; the framework only opens and
+closes the configured pool.
+
+Native statistics operations are declared in the release's service description
+and require explicit `statistics` feature approval. The authenticated platform
+endpoint resolves that exact release and injects the viewer's identity/scopes;
+the browser supplies only the operation's query. Unsupported releases return
+an unavailable capability instead of querying another release or platform tables.
 
 - `/health/live` reports process liveness.
 - `/health/ready` reports configuration and database readiness.

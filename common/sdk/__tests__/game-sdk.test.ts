@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { defineGame, type GameModule } from '../src/index.js';
+import {
+  defineGame,
+  type GameModule,
+  type TerminalFactsContext,
+} from '../src/index.js';
 
 interface State {
   readonly count: number;
@@ -103,6 +107,43 @@ describe('defineGame', () => {
       promptId: 'prompt-1',
       participantInputRevision: 0,
     });
+  });
+
+  it('accepts and validates optional terminal facts hooks', () => {
+    const module = {
+      ...moduleFixture(),
+      terminalFacts: (state: State, context: TerminalFactsContext) => [
+        {
+          fact: 'terminal',
+          count: state.count,
+          status: context.status,
+          logicalTime: context.logicalTime,
+        },
+      ],
+    };
+    const defined = defineGame(module);
+    expect(
+      defined.terminalFacts?.(
+        { count: 10, finished: true },
+        { status: 'completed', logicalTime: 42 },
+      ),
+    ).toEqual([
+      { fact: 'terminal', count: 10, status: 'completed', logicalTime: 42 },
+    ]);
+
+    const malformed = {
+      ...moduleFixture(),
+      terminalFacts: 'not-a-function',
+    } as unknown as GameModule<
+      State,
+      Setup,
+      Command,
+      View,
+      Event,
+      Query,
+      Answer
+    >;
+    expect(() => defineGame(malformed)).toThrowError(/expectedFunction/);
   });
 
   it('rejects duplicate modes, malformed schemas, and server lifecycle hooks', () => {

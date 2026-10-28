@@ -14,6 +14,7 @@ import {
   assertControlSessionRequest,
   assertCreateSessionRequest,
   assertDailyChallengeServiceRequest,
+  assertGameStatisticsServiceRequest,
   assertGetEventsRequest,
   assertJsonPayloadSize,
   assertProtocolRequest,
@@ -34,6 +35,9 @@ import {
   DEFAULT_JSON_LIMITS,
   type DescribeRequest,
   type ErrorEnvelope,
+  GAME_STATISTICS_BACKEND_OPERATION,
+  type GameStatisticsServiceRequest,
+  type GameStatisticsServiceResponse,
   type GetEventsRequest,
   type GetEventsResponse,
   type GetPlayerViewRequest,
@@ -52,7 +56,6 @@ import {
   type ResumeRequest,
   type ResumeResult,
   type RetireSessionHistoryRequest,
-  type SessionRoute,
   type SessionSummary,
   type SubmitCommandRequest,
   type SubmitCommandResponse,
@@ -77,6 +80,7 @@ export const HTTP_HOST_OPERATIONS = [
   'controlSession',
   'retireSessionHistory',
   DAILY_CHALLENGE_BACKEND_OPERATION,
+  GAME_STATISTICS_BACKEND_OPERATION,
 ] as const;
 
 export type BackendOperation = (typeof HTTP_HOST_OPERATIONS)[number];
@@ -345,6 +349,9 @@ function validateRequest(operation: BackendOperation, value: unknown): void {
     case DAILY_CHALLENGE_BACKEND_OPERATION:
       assertDailyChallengeServiceRequest(value);
       return;
+    case GAME_STATISTICS_BACKEND_OPERATION:
+      assertGameStatisticsServiceRequest(value);
+      return;
   }
 }
 
@@ -446,7 +453,12 @@ function dispatch(
       if (!backend.dailyChallenge)
         throw contractError('NOT_READY', 'host.daily.unavailable');
       return backend.dailyChallenge(request as DailyChallengeServiceRequest);
+    case GAME_STATISTICS_BACKEND_OPERATION:
+      if (!backend.statistics)
+        throw contractError('NOT_READY', 'host.statistics.unavailable');
+      return backend.statistics(request as GameStatisticsServiceRequest);
   }
+  throw contractError('NOT_FOUND', 'transport.route.notFound');
 }
 
 async function invoke(
@@ -573,6 +585,15 @@ abstract class BackendAdapterBase implements BackendPort {
   ): Promise<DailyChallengeServiceResponse> {
     return this.call<DailyChallengeServiceResponse>(
       DAILY_CHALLENGE_BACKEND_OPERATION,
+      request,
+    );
+  }
+
+  public statistics(
+    request: GameStatisticsServiceRequest,
+  ): Promise<GameStatisticsServiceResponse> {
+    return this.call<GameStatisticsServiceResponse>(
+      GAME_STATISTICS_BACKEND_OPERATION,
       request,
     );
   }
@@ -836,10 +857,8 @@ function filterDescription(
   };
 }
 
-function routeForRequest(value: unknown): SessionRoute | undefined {
-  return isRecord(value) && isRecord(value.route)
-    ? (value.route as unknown as SessionRoute)
-    : undefined;
+function routeForRequest(value: unknown): Record<string, unknown> | undefined {
+  return isRecord(value) && isRecord(value.route) ? value.route : undefined;
 }
 
 function accessForRequest(value: unknown): AccessContext | undefined {
@@ -857,7 +876,16 @@ function authorizeServiceRequest(
   const route = routeForRequest(value);
   if (operation === DAILY_CHALLENGE_BACKEND_OPERATION && !route)
     throw contractError('INVALID_REQUEST', 'transport.daily.route_required');
-  if (route && !allowedGameIds.has(route.gameId)) {
+  if (operation === GAME_STATISTICS_BACKEND_OPERATION && !route)
+    throw contractError(
+      'INVALID_REQUEST',
+      'transport.statistics.route_required',
+    );
+  if (
+    route &&
+    typeof route.gameId === 'string' &&
+    !allowedGameIds.has(route.gameId)
+  ) {
     throw contractError('FORBIDDEN', 'transport.game.denied');
   }
   const accessContext = accessForRequest(value);
@@ -876,6 +904,12 @@ function authorizeServiceRequest(
   ) {
     throw contractError('FORBIDDEN', 'transport.system.scope.denied');
   }
+  if (
+    operation === GAME_STATISTICS_BACKEND_OPERATION &&
+    accessContext &&
+    !accessContext.scopes.includes('statistics:read')
+  )
+    throw contractError('FORBIDDEN', 'transport.statistics.scope.denied');
 }
 
 function normalizeHttpOptions(options: HttpHostTransportOptions): {

@@ -53,6 +53,38 @@ describe('game runtime configuration', () => {
       }),
     ).toThrow();
   });
+  it('allows a game-owned postgres statistics schema with a separate URL reference', () => {
+    expect(() =>
+      assertGameRuntimeConfiguration({
+        ...configuration,
+        statisticsStorage: {
+          driver: 'postgres',
+          urlEnv: 'SETI_STATISTICS_DATABASE_URL',
+          namespace: 'example_statistics',
+        },
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertGameRuntimeConfiguration({
+        ...configuration,
+        statisticsStorage: {
+          driver: 'postgres',
+          urlEnv: 'SETI_STATISTICS_DATABASE_URL',
+          namespace: 'example',
+        },
+      }),
+    ).toThrow();
+    expect(() =>
+      assertGameRuntimeConfiguration({
+        ...configuration,
+        statisticsStorage: {
+          driver: 'memory',
+          urlEnv: 'SETI_STATISTICS_DATABASE_URL',
+          namespace: 'example_statistics',
+        },
+      }),
+    ).toThrow();
+  });
   it('rejects ephemeral production storage and incomplete authority or conflicting ports', () => {
     for (const candidate of [
       { ...configuration, binding: undefined },

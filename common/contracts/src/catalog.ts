@@ -8,6 +8,7 @@ export const GAME_CAPABILITIES = [
   'rating',
   'rankings',
   'profile',
+  'statistics',
   'replay',
   'messages',
 ] as const;

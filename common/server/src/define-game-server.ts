@@ -109,6 +109,14 @@ export function defineGameServer<
       Array.isArray(services.view))
   )
     throw contractError('INVALID_REQUEST', 'server.definition.view');
+  if (
+    services.statistics !== undefined &&
+    (!services.statistics ||
+      typeof services.statistics !== 'object' ||
+      Array.isArray(services.statistics) ||
+      typeof services.statistics.query !== 'function')
+  )
+    throw contractError('INVALID_REQUEST', 'server.definition.statistics');
   uniqueKeys(services.commands, 'command');
   if (services.replay && !services.replay.presenter && !services.replay.queries)
     throw contractError('INVALID_REQUEST', 'server.definition.replay');

@@ -1,5 +1,6 @@
 import type {
   AchievementCollection,
+  GameStatisticsServiceRequest,
   MatchAdmission,
   SessionRoute,
 } from '@board-game/contracts';
@@ -316,5 +317,97 @@ describe('GameCapabilityService', () => {
     ).resolves.toMatchObject({
       assets: [{ asset: 'coin', granted: 9 }],
     });
+  });
+
+  it('validates release-pinned statistics operation and payload schemas', async () => {
+    const requestSchema = {
+      name: 'statistics.query',
+      version: 1,
+      maxBytes: 1024,
+      schema: {
+        type: 'object' as const,
+        properties: { range: { type: 'string' as const } },
+        required: ['range'],
+        additionalProperties: false,
+      },
+    };
+    const responseSchema = {
+      name: 'statistics.response',
+      version: 1,
+      maxBytes: 1024,
+      schema: {
+        type: 'object' as const,
+        properties: { total: { type: 'integer' as const, minimum: 0 } },
+        required: ['total'],
+        additionalProperties: false,
+      },
+    };
+    const query = vi.fn(async (_request: GameStatisticsServiceRequest) => ({
+      operation: 'personalSummary',
+      audience: 'self' as const,
+      payload: { total: 3 },
+    }));
+    const registry = new GameCapabilityRegistry();
+    registry.register({
+      metadata: {
+        gameId: 'seti',
+        name: 'SETI',
+        description: 'Statistics fixture',
+        themeId: 'seti',
+      },
+      releaseId: 'seti-v1',
+      capabilities: ['statistics'],
+      policyVersions: [],
+      assets: [],
+      statistics: {
+        description: {
+          protocolVersion: 1,
+          operations: [
+            {
+              key: 'personalSummary',
+              audience: 'self',
+              requestSchema,
+              responseSchema,
+            },
+          ],
+        },
+        query,
+      },
+    });
+    const service = new GameCapabilityService({ registry });
+    const request: GameStatisticsServiceRequest = {
+      protocolVersion: 1,
+      route: {
+        gameId: 'seti',
+        releaseId: 'seti-v1',
+        backendBindingId: 'seti-backend',
+        storageBindingId: 'seti-storage',
+        ownershipEpoch: 'seti-epoch',
+      },
+      operation: 'personalSummary',
+      audience: 'self',
+      accessContext: {
+        principalId: 'player-a',
+        authEpoch: 'epoch-1',
+        scopes: ['statistics:read'],
+      },
+      query: { range: '30d' },
+    };
+    await expect(
+      service.queryStatistics('seti', 'seti-v1', request),
+    ).resolves.toEqual({
+      operation: 'personalSummary',
+      audience: 'self',
+      payload: { total: 3 },
+    });
+    await expect(
+      service.queryStatistics('seti', 'seti-v1', {
+        ...request,
+        query: { range: 30 },
+      }),
+    ).rejects.toMatchObject({
+      envelope: { code: 'SCHEMA_VALIDATION_FAILED' },
+    });
+    expect(query).toHaveBeenCalledOnce();
   });
 });

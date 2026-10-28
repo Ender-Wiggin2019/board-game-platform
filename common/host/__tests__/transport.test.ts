@@ -203,6 +203,56 @@ afterEach(async () => {
 });
 
 describe('EmbeddedBackendAdapter and RemoteBackendAdapter', () => {
+  it('forwards release-pinned statistics only through the service transport', async () => {
+    const statistics = vi.fn(async () => ({
+      operation: 'personalSummary',
+      audience: 'self' as const,
+      payload: { total: 3 },
+    }));
+    const backend = backendWith({ statistics });
+    const { baseUrl } = await startTransport(backend, {
+      allowedScopes: ['statistics:read'],
+    });
+    const remote = new RemoteBackendAdapter({
+      baseUrl,
+      serviceToken,
+      allowInsecureLocalhost: true,
+    });
+    const statisticsRequest = {
+      protocolVersion: 1 as const,
+      route: {
+        gameId: route.gameId,
+        releaseId: route.releaseId,
+        backendBindingId: route.backendBindingId,
+        storageBindingId: route.storageBindingId,
+        ownershipEpoch: route.ownershipEpoch,
+      },
+      operation: 'personalSummary',
+      audience: 'self' as const,
+      accessContext: {
+        principalId: 'principal-1',
+        scopes: ['statistics:read'],
+        authEpoch: 'auth-1',
+      },
+      query: { range: '30d' },
+    };
+    await expect(remote.statistics(statisticsRequest)).resolves.toEqual({
+      operation: 'personalSummary',
+      audience: 'self',
+      payload: { total: 3 },
+    });
+    expect(statistics).toHaveBeenCalledWith(statisticsRequest);
+    const denied = await postJson(baseUrl, 'statistics', {
+      protocolVersion: 1,
+      request: {
+        ...statisticsRequest,
+        accessContext: { ...statisticsRequest.accessContext, scopes: [] },
+      },
+    });
+    expect(denied.status).toBe(403);
+    expect(statistics).toHaveBeenCalledTimes(1);
+  });
+
   it('routes authenticated system commands only through the internal service operation', async () => {
     const submitSystemCommand = vi.fn(
       async (request: SubmitSystemCommandRequest) => ({
@@ -619,6 +669,7 @@ describe('HttpPlayerTransport', () => {
       'ready',
       'describe',
       'dailyChallenge',
+      'statistics',
     ]) {
       expect(
         (await endpoint.post(operation, { protocolVersion: 1, route })).status,

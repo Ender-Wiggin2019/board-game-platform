@@ -1,12 +1,19 @@
-import { contractError, type GameCatalogEntry } from '@board-game/contracts';
-import { ECapability } from '@board-platform/contracts/auth/permissions';
 import {
+  assertJsonPayloadSize,
+  contractError,
+  type GameCatalogEntry,
+  isJsonValue,
+} from '@board-game/contracts';
+import { can, ECapability } from '@board-platform/contracts/auth/permissions';
+import {
+  Body,
   Controller,
   Get,
   Header,
   Inject,
   Optional,
   Param,
+  Post,
   Query,
   Req,
   UseFilters,
@@ -14,6 +21,7 @@ import {
 } from '@nestjs/common';
 import { Capabilities } from '@/auth/capabilities.decorator.js';
 import type { IPrincipal } from '@/auth/jwt-auth.guard.js';
+import { resolveUserRole } from '@/auth/roleResolver.js';
 import { RolesGuard } from '@/auth/roles.guard.js';
 import { GameCapabilityService } from './capabilities/index.js';
 import { PlatformApplicationRuntime } from './PlatformApplicationRuntime.js';
@@ -157,9 +165,13 @@ export class PlatformCapabilitiesController {
       .map((release) => ({
         metadata: structuredClone(release.service.metadata),
         releaseId: release.releaseId,
-        // A remote service has no capability implementation in this process.
-        // Never copy manifest-declared features into this public projection.
-        capabilities: [],
+        // Only explicitly approved, descriptor-backed features cross this
+        // boundary; manifest declarations alone are never sufficient.
+        capabilities:
+          release.approvedFeatures?.includes('statistics') &&
+          release.service.statistics !== undefined
+            ? (['statistics'] as const)
+            : [],
         policyVersions: [],
         assets: [],
       }));
@@ -240,5 +252,89 @@ export class PlatformCapabilitiesController {
       this.release(gameId),
       principal.principalId,
     );
+  }
+
+  @Post(':gameId/statistics/:operation')
+  @UseGuards(RolesGuard)
+  @Capabilities(ECapability.GAME_PLAY)
+  @Header('Cache-Control', 'no-store')
+  async nativeStatistics(
+    @Req() request: Request,
+    @Param('gameId') gameId: string,
+    @Param('operation') operation: string,
+    @Body() query: unknown,
+  ) {
+    const game = identifier(gameId);
+    const releaseId = this.release(game);
+    const operationKey = identifier(operation);
+    const descriptor = this.capabilities.statisticsOperation(
+      game,
+      releaseId,
+      operationKey,
+    );
+    if (!descriptor)
+      throw contractError(
+        'NOT_READY',
+        'platform.game.capability.statistics_unavailable',
+      );
+    if (
+      !isJsonValue(query) ||
+      query === null ||
+      typeof query !== 'object' ||
+      Array.isArray(query)
+    )
+      throw contractError('INVALID_REQUEST', 'platform.request.invalid');
+    if (
+      [
+        'accessContext',
+        'route',
+        'principalId',
+        'scopes',
+        'releaseId',
+        'backendBindingId',
+        'storageBindingId',
+        'ownershipEpoch',
+      ].some((key) => Object.hasOwn(query, key))
+    )
+      throw contractError(
+        'FORBIDDEN',
+        'platform.statistics.identity_forbidden',
+      );
+    assertJsonPayloadSize(query, 256 * 1024, 'statistics.query');
+    const current = await this.principalWithStatisticsScopes(request);
+    const installed = this.platform.releaseGame(game, releaseId);
+    const response = await this.capabilities.queryStatistics(game, releaseId, {
+      protocolVersion: 1,
+      route: {
+        gameId: game,
+        releaseId,
+        backendBindingId: installed.backendBindingId,
+        storageBindingId: installed.storageBindingId,
+        ownershipEpoch: installed.ownershipEpoch,
+      },
+      operation: descriptor.key,
+      audience: descriptor.audience,
+      accessContext: {
+        principalId: current.identity.principalId,
+        authEpoch: current.identity.authEpoch,
+        scopes: current.scopes,
+      },
+      query,
+    });
+    return response.payload;
+  }
+
+  private async principalWithStatisticsScopes(request: Request) {
+    if (!request.user?.sub || !request.user.sid)
+      throw contractError('UNAUTHENTICATED', 'platform.identity.required');
+    const current = await this.platform.accountIdentity().resolveCurrent({
+      principalId: request.user.sub,
+      authSessionId: request.user.sid,
+    });
+    const role = resolveUserRole(current.account);
+    const scopes = ['statistics:read'];
+    if (can(role, ECapability.NAVIGATOR_BENEFITS))
+      scopes.push('statistics:personal-details', 'statistics:extended-range');
+    return { ...current, scopes };
   }
 }

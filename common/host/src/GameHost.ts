@@ -1594,6 +1594,14 @@ export class GameHost implements BackendPort {
             events: copy(events),
           });
           assertJsonPayloadSize(facts, DEFAULT_JSON_LIMITS.viewBytes);
+          const terminalFacts = terminal
+            ? this.terminalFacts(
+                module,
+                candidate(),
+                complete.cancelled ? 'cancelled' : 'completed',
+                logicalTime,
+              )
+            : [];
           if (complete.progress !== undefined)
             assertJsonPayloadSize(
               complete.progress,
@@ -1712,6 +1720,9 @@ export class GameHost implements BackendPort {
             ),
             ...facts.map((fact, index) =>
               this.outbox(next, 'GameFact', fact, index + 1),
+            ),
+            ...terminalFacts.map((fact, index) =>
+              this.outbox(next, 'GameFact', fact, facts.length + index + 1),
             ),
           ]);
           if (options.kind === 'player')
@@ -2277,16 +2288,26 @@ export class GameHost implements BackendPort {
           ...(status === 'cancelled' ? { deadline: undefined } : {}),
           ...(status === 'cancelled' ? { automationFailure: undefined } : {}),
         };
-        const mode = this.mode(
-          this.options.registry.resolve(head.route),
-          head.route,
-        );
+        const module = this.options.registry.resolve(head.route);
+        const mode = this.mode(module, head.route);
         const clearPrivate =
           status === 'cancelled' && mode.history !== 'summary-and-replay';
+        const terminalFacts =
+          status === 'cancelled' && head.encodedState !== null
+            ? this.terminalFacts(
+                module,
+                module.rules.decode(
+                  copy(head.encodedState),
+                  head.schemaVersion,
+                ),
+                'cancelled',
+                next.logicalTime,
+              )
+            : [];
         await tx.setHead(clearPrivate ? { ...next, encodedState: null } : next);
         if (clearPrivate) await tx.clearPrivateState();
         else if (status === 'cancelled') await tx.clearAutomationDecisions();
-        await tx.appendOutbox(
+        await tx.appendOutboxMany([
           this.outbox(
             next,
             'SessionControlled',
@@ -2298,7 +2319,10 @@ export class GameHost implements BackendPort {
             },
             0,
           ),
-        );
+          ...terminalFacts.map((fact, index) =>
+            this.outbox(next, 'GameFact', fact, index + 1),
+          ),
+        ]);
         const receipt: CommandReceipt = {
           sessionId: head.route.sessionId,
           commandId: request.commandId,
@@ -3010,6 +3034,27 @@ export class GameHost implements BackendPort {
       dueAt: value.dueAt,
       command: copy(value.command),
     };
+  }
+
+  private terminalFacts(
+    module: RuntimeModule,
+    state: Readonly<unknown>,
+    status: 'completed' | 'cancelled',
+    logicalTime: number,
+  ): readonly JsonValue[] {
+    if (!module.terminalFacts) return [];
+    const candidate = module.rules.decode(
+      copy(module.rules.encode(state)),
+      module.stateSchemaVersion,
+    );
+    const before = digest(module.rules.encode(candidate));
+    const facts = module.terminalFacts(candidate, { status, logicalTime });
+    if (before !== digest(module.rules.encode(candidate)))
+      throw contractError('INTERNAL', 'host.terminalFacts.mutatedState');
+    if (!Array.isArray(facts))
+      throw contractError('INVALID_REQUEST', 'host.terminalFacts.invalid');
+    assertJsonPayloadSize(facts, DEFAULT_JSON_LIMITS.viewBytes);
+    return copy(facts);
   }
 
   private assertSystemDeadline(

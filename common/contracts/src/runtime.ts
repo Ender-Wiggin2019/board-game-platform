@@ -11,6 +11,10 @@ import {
   assertSchemaDescriptor,
   type SchemaDescriptor,
 } from './schema.js';
+import {
+  assertGameServiceStatisticsDescription,
+  type GameServiceStatisticsDescription,
+} from './statistics.js';
 import type { AutomationPreset } from './turns.js';
 import type { ModeDefinition } from './types.js';
 import { assertModeDefinition } from './validation.js';
@@ -51,6 +55,7 @@ export interface GameServiceDescription {
   readonly commands?: readonly GameServiceCommandDescription[];
   readonly controllers?: RoomControllerCapabilities;
   readonly dailyChallenge?: GameServiceDailyChallengeDescription;
+  readonly statistics?: GameServiceStatisticsDescription;
 }
 
 const MAX_IDENTIFIER_LENGTH = 256;
@@ -358,6 +363,7 @@ export function assertGameServiceDescription(
       'commands',
       'controllers',
       'dailyChallenge',
+      'statistics',
     ],
     '$',
   );
@@ -386,4 +392,6 @@ export function assertGameServiceDescription(
     assertControllers(value.controllers, '$.controllers');
   if (value.dailyChallenge !== undefined)
     assertGameServiceDailyChallengeDescription(value.dailyChallenge);
+  if (value.statistics !== undefined)
+    assertGameServiceStatisticsDescription(value.statistics);
 }

@@ -57,13 +57,20 @@ export type GameProcessIdentity = Pick<
 export interface GameProcessResources {
   readonly configuration: GameRuntimeConfiguration;
   readonly pool?: Pool;
+  /** Present only when statisticsStorage selects a separate connection. */
+  readonly statisticsPool?: Pool;
+  /** Stable game-owned schema used by native statistics projections. */
+  readonly statisticsNamespace: string;
   readonly storage: StorageDriver;
 }
 
 export interface GameProcessOptions<Command extends JsonValue> {
   readonly configurationPath?: string;
   readonly env?: NodeJS.ProcessEnv;
-  readonly describe: (identity: GameProcessIdentity) => GameServiceDescription;
+  readonly describe: (
+    identity: GameProcessIdentity,
+    configuration?: GameRuntimeConfiguration,
+  ) => GameServiceDescription;
   readonly createRunner: (
     options: GameProcessRunnerOptions,
     resources: GameProcessResources,
@@ -204,6 +211,9 @@ const serviceScopes = [
   'session:control:cancel',
   'session:system',
   'session:spectate',
+  'statistics:read',
+  'statistics:personal-details',
+  'statistics:extended-range',
 ] as const;
 
 /** Construct one independently deployable game process using common durable adapters. */
@@ -253,7 +263,7 @@ export async function createConfiguredGameProcess<Command extends JsonValue>(
     platformId: connection.platformId,
     ...pins,
   };
-  const description = options.describe(identity);
+  const description = options.describe(identity, configuration);
   if (!configuration.replay.enabled && description.replay)
     throw new Error('GAME_PROCESS_REPLAY_DISABLE_ADAPTER_REQUIRED');
   for (const field of [
@@ -282,6 +292,15 @@ export async function createConfiguredGameProcess<Command extends JsonValue>(
           max: configuration.storage.maxConnections ?? 10,
         })
       : undefined;
+  const statisticsPool = configuration.statisticsStorage
+    ? new Pool({
+        connectionString: required(env, configuration.statisticsStorage.urlEnv),
+        max: configuration.statisticsStorage.maxConnections ?? 5,
+      })
+    : undefined;
+  const statisticsNamespace =
+    configuration.statisticsStorage?.namespace ??
+    `${configuration.storage.namespace}_statistics`;
   const storage = pool
     ? new PostgresStorageDriver({
         pool,
@@ -303,7 +322,9 @@ export async function createConfiguredGameProcess<Command extends JsonValue>(
   const resources: GameProcessResources = {
     configuration,
     storage,
+    statisticsNamespace,
     ...(pool ? { pool } : {}),
+    ...(statisticsPool ? { statisticsPool } : {}),
   };
   const host =
     configuration.transport?.host ??
@@ -361,12 +382,14 @@ export async function createConfiguredGameProcess<Command extends JsonValue>(
       prepare: migrate,
       cleanup: async () => {
         await pool?.end();
+        await statisticsPool?.end();
       },
       intervalMs: options.maintenanceIntervalMs,
     });
     return { runner, resources, migrate };
   } catch (error) {
     await pool?.end();
+    await statisticsPool?.end();
     throw error;
   }
 }

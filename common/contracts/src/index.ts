@@ -13,6 +13,7 @@ export * from './runtime.js';
 export * from './runtime-config.js';
 export * from './schema.js';
 export * from './session-controls.js';
+export * from './statistics.js';
 export * from './turns.js';
 export * from './types.js';
 export * from './validation.js';

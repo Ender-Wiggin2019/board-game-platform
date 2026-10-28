@@ -8,6 +8,9 @@ import type {
   GameProfileSummary,
   GameRankingSummary,
   GameResult,
+  GameServiceStatisticsDescription,
+  GameStatisticsServiceRequest,
+  GameStatisticsServiceResponse,
   GameWallet,
   JsonValue,
   MatchAdmission,
@@ -155,7 +158,13 @@ export interface GameProfileCapability {
 
 /** Aggregate statistics supplied by the game adapter to authorized players/operators. */
 export interface GameStatisticsCapability {
-  readonly read: (principalId?: string) => Promise<JsonValue>;
+  /** Legacy platform overview; kept separate from native statistics queries. */
+  readonly read?: (principalId?: string) => Promise<JsonValue>;
+  /** Release-pinned game-owned query RPC. */
+  readonly description?: GameServiceStatisticsDescription;
+  readonly query?: (
+    request: GameStatisticsServiceRequest,
+  ) => Promise<GameStatisticsServiceResponse>;
 }
 
 /** Account-facing counts supplied by a game's authoritative legacy adapter. */

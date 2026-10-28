@@ -158,6 +158,8 @@ export function defineGame<
   validateRules(module.rules);
   requireFunction(module.summarize, 'summarize');
   requireFunction(module.collectFacts, 'collectFacts');
+  if (module.terminalFacts !== undefined)
+    requireFunction(module.terminalFacts, 'terminalFacts');
   requireFunction(module.completion, 'completion');
   if (module.turn !== undefined) requireFunction(module.turn, 'turn');
   if (module.projectAutomationView !== undefined)

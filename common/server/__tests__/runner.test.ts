@@ -50,6 +50,31 @@ const replayQuerySchema = {
   },
 };
 
+const statisticsQuerySchema = {
+  name: 'runner.statistics-query',
+  version: 1,
+  schema: {
+    type: 'object' as const,
+    properties: {
+      range: { type: 'string' as const },
+    },
+    additionalProperties: false,
+  },
+};
+
+const statisticsPayloadSchema = {
+  name: 'runner.statistics-payload',
+  version: 1,
+  schema: {
+    type: 'object' as const,
+    properties: {
+      total: { type: 'integer' as const, minimum: 0 },
+    },
+    required: ['total'],
+    additionalProperties: false,
+  },
+};
+
 const description: GameServiceDescription = {
   schemaVersion: 1,
   platformId: 'runner-test-platform',
@@ -77,6 +102,17 @@ const description: GameServiceDescription = {
       inputSchema: serviceInputSchema,
     },
   ],
+  statistics: {
+    protocolVersion: 1,
+    operations: [
+      {
+        key: 'personalSummary',
+        audience: 'self',
+        requestSchema: statisticsQuerySchema,
+        responseSchema: statisticsPayloadSchema,
+      },
+    ],
+  },
 };
 
 type RunnerDefinition = GameServerDefinition<
@@ -107,6 +143,8 @@ const claimService = defineCommandService<
 const recovery = vi.fn(async () => undefined);
 
 function definition(services: Record<string, unknown> = {}): RunnerDefinition {
+  const statisticsDescription = description.statistics;
+  if (!statisticsDescription) throw new Error('statistics fixture is missing');
   return defineGameServer({
     manifest: {
       gameId: sequentialTurnFixture.gameId,
@@ -152,6 +190,14 @@ function definition(services: Record<string, unknown> = {}): RunnerDefinition {
         },
       },
       recovery: [{ key: 'runner:recovery:v1', recover: recovery }],
+      statistics: {
+        description: statisticsDescription,
+        query: async () => ({
+          operation: 'personalSummary',
+          audience: 'self',
+          payload: { total: 3 },
+        }),
+      },
       ...services,
     },
   }) as unknown as RunnerDefinition;
@@ -420,6 +466,63 @@ describe('independent game server runner', () => {
         transport: { ...development.transport, host: '0.0.0.0' },
       }),
     ).toThrow('server.runner.development_transport_loopback');
+  });
+
+  it('serves release-pinned statistics and rejects route, scope, and schema drift', async () => {
+    const runner = createGameServerRunner(
+      runnerOptions(new MemoryStorageDriver()),
+    );
+    runners.push(runner);
+    const route = {
+      gameId: description.gameId,
+      releaseId: description.releaseId,
+      backendBindingId: description.backendBindingId,
+      storageBindingId: description.storageBindingId,
+      ownershipEpoch: description.ownershipEpoch,
+    };
+    const request = {
+      protocolVersion: 1 as const,
+      route,
+      operation: 'personalSummary',
+      audience: 'self' as const,
+      accessContext: {
+        principalId: 'p1',
+        authEpoch: 'epoch-1',
+        scopes: ['statistics:read'],
+      },
+      query: { range: '30d' },
+    };
+    if (!runner.backend.statistics)
+      throw new Error('statistics backend operation missing');
+    await expect(runner.backend.statistics(request)).resolves.toEqual({
+      operation: 'personalSummary',
+      audience: 'self',
+      payload: { total: 3 },
+    });
+    await expect(
+      runner.backend.statistics({
+        ...request,
+        route: { ...route, ownershipEpoch: 'other-owner' },
+      }),
+    ).rejects.toMatchObject({
+      envelope: { code: 'FORBIDDEN' },
+    });
+    await expect(
+      runner.backend.statistics({
+        ...request,
+        accessContext: { ...request.accessContext, scopes: [] },
+      }),
+    ).rejects.toMatchObject({
+      envelope: { code: 'FORBIDDEN' },
+    });
+    await expect(
+      runner.backend.statistics({
+        ...request,
+        query: { unexpected: true },
+      }),
+    ).rejects.toMatchObject({
+      envelope: { code: 'SCHEMA_VALIDATION_FAILED' },
+    });
   });
 
   it('serves two HTTP game processes with isolated storage and mapped commands/replay', async () => {

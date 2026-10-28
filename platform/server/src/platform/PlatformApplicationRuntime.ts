@@ -158,6 +158,8 @@ export interface RemoteSettlementReleaseInput {
   readonly releaseId: string;
   readonly metadata: GameMetadata;
   readonly service: GameServiceDescription;
+  /** Explicit platform approval; never inferred from the service manifest. */
+  readonly approvedFeatures?: readonly string[];
   readonly approvedModes: readonly string[];
   readonly approvedPolicyVersions: readonly GamePolicyVersion[];
   readonly policyBundle?: JsonValue;
@@ -1109,6 +1111,14 @@ export class PlatformApplicationRuntime {
           'INVALID_REQUEST',
           'platform.remote.approval_required',
         );
+      if (
+        (description.statistics !== undefined) !==
+        registration.approvedFeatures.includes('statistics')
+      )
+        throw contractError(
+          'INVALID_REQUEST',
+          'platform.remote.statistics_approval_required',
+        );
       if (!registration.approvedModes)
         throw contractError(
           'INVALID_REQUEST',
@@ -1320,6 +1330,8 @@ export class PlatformApplicationRuntime {
         releaseId: description.releaseId,
         metadata: description.metadata,
         service: description,
+        approvedFeatures:
+          persistedRelease?.approvedFeatures ?? registration.approvedFeatures,
         approvedModes:
           persistedRelease?.approvedModes ??
           registration.approvedModes ??

@@ -6,6 +6,10 @@ import type { ErrorEnvelope } from './errors.js';
 import type { JsonValue } from './json.js';
 import type { GameServiceDescription } from './runtime.js';
 import type { SchemaDescriptor } from './schema.js';
+import type {
+  GameStatisticsServiceRequest,
+  GameStatisticsServiceResponse,
+} from './statistics.js';
 import type { AutomationFailure, TurnView } from './turns.js';
 
 export type GameId = string;
@@ -448,6 +452,10 @@ export interface BackendPort<
   readonly dailyChallenge?: (
     request: DailyChallengeServiceRequest,
   ) => Promise<DailyChallengeServiceResponse>;
+  /** Optional authenticated game-owned statistics capability RPC. */
+  readonly statistics?: (
+    request: GameStatisticsServiceRequest,
+  ) => Promise<GameStatisticsServiceResponse>;
   /** Optional for retained older backends; callers fail closed when unsupported. */
   readonly retireSessionHistory?: (
     request: RetireSessionHistoryRequest,

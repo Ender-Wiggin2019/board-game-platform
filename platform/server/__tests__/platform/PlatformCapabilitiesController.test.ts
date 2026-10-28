@@ -49,6 +49,103 @@ const request = { user: { sub: 'token-user', sid: 'session' } } as never;
 const publicTarget = '00000000-0000-4000-8000-000000000003';
 
 describe('public game capabilities', () => {
+  it('routes native statistics through the exact current binding and injects scopes', async () => {
+    const statisticsOperation = vi.fn(() => ({
+      key: 'personalSummary',
+      audience: 'self' as const,
+      requestSchema: {},
+      responseSchema: {},
+    }));
+    const queryStatistics = vi.fn(async () => ({
+      operation: 'personalSummary',
+      audience: 'self' as const,
+      payload: { total: 3 },
+    }));
+    const platform = {
+      accountIdentity: () => ({
+        resolveCurrent: async () => ({
+          identity: {
+            principalId: 'account-user',
+            authEpoch: 'epoch-1',
+          },
+          account: {
+            role: 'navigator',
+            navigatorGrantedAt: null,
+            navigatorExpiresAt: null,
+          },
+        }),
+      }),
+      game: (gameId: string) => ({ gameId, releaseId: `${gameId}-active` }),
+      releaseGame: vi.fn(() => ({
+        backendBindingId: 'backend-v2',
+        storageBindingId: 'storage-v2',
+        ownershipEpoch: 'owner-v2',
+      })),
+    } as unknown as PlatformApplicationRuntime;
+    const controller = new PlatformCapabilitiesController(platform, {
+      statisticsOperation,
+      queryStatistics,
+    } as unknown as GameCapabilityService);
+
+    await expect(
+      controller.nativeStatistics(request, 'seti', 'personalSummary', {
+        range: '30d',
+      }),
+    ).resolves.toEqual({ total: 3 });
+    expect(queryStatistics).toHaveBeenCalledWith('seti', 'seti-active', {
+      protocolVersion: 1,
+      route: {
+        gameId: 'seti',
+        releaseId: 'seti-active',
+        backendBindingId: 'backend-v2',
+        storageBindingId: 'storage-v2',
+        ownershipEpoch: 'owner-v2',
+      },
+      operation: 'personalSummary',
+      audience: 'self',
+      accessContext: {
+        principalId: 'account-user',
+        authEpoch: 'epoch-1',
+        scopes: [
+          'statistics:read',
+          'statistics:personal-details',
+          'statistics:extended-range',
+        ],
+      },
+      query: { range: '30d' },
+    });
+    await expect(
+      controller.nativeStatistics(request, 'seti', 'personalSummary', {
+        principalId: 'attacker',
+      }),
+    ).rejects.toMatchObject({ envelope: { code: 'FORBIDDEN' } });
+    expect(queryStatistics).toHaveBeenCalledOnce();
+  });
+
+  it('returns a stable not-ready error when the exact release has no statistics capability', async () => {
+    const controller = new PlatformCapabilitiesController(
+      {
+        game: (gameId: string) => ({
+          gameId,
+          releaseId: `${gameId}-active`,
+        }),
+      } as unknown as PlatformApplicationRuntime,
+      {
+        statisticsOperation: vi.fn(() => undefined),
+        queryStatistics: vi.fn(),
+      } as unknown as GameCapabilityService,
+    );
+
+    await expect(
+      controller.nativeStatistics(request, 'seti', 'personalSummary', {}),
+    ).rejects.toMatchObject({
+      envelope: {
+        code: 'NOT_READY',
+        messageKey: 'platform.game.capability.statistics_unavailable',
+      },
+    });
+  });
+
   it('lists only current registered game releases', () => {
     const { controller, capabilities } = fixture();
     expect(controller.catalog()).toEqual([
@@ -109,6 +206,50 @@ describe('public game capabilities', () => {
         policyVersions: [],
         assets: [],
       },
+    ]);
+  });
+
+  it('projects only explicitly approved descriptor-backed statistics capability', async () => {
+    const capabilities = { list: vi.fn(() => []) };
+    const platform = {
+      options: { platformId: 'independent-platform' },
+      releaseRegistry: {
+        listReleases: vi.fn(async () => [
+          {
+            gameId: 'remote-game',
+            releaseId: 'remote-v1',
+            approvedFeatures: ['statistics'],
+            service: {
+              metadata: {
+                gameId: 'remote-game',
+                name: 'Remote game',
+                description: 'Remote release',
+                themeId: 'remote',
+              },
+              statistics: { protocolVersion: 1, operations: [] },
+            },
+          },
+        ]),
+      },
+    } as unknown as PlatformApplicationRuntime;
+    const releases = {
+      platformCatalog: vi.fn(async () => [
+        {
+          gameId: 'remote-game',
+          releaseId: 'remote-v1',
+          mode: {},
+          metadata: {},
+        },
+      ]),
+    };
+    const controller = new PlatformCapabilitiesController(
+      platform,
+      capabilities as unknown as GameCapabilityService,
+      releases as never,
+    );
+
+    await expect(controller.catalog()).resolves.toMatchObject([
+      { releaseId: 'remote-v1', capabilities: ['statistics'] },
     ]);
   });
 

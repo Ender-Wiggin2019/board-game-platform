@@ -1,4 +1,5 @@
 import {
+  assertGameServiceStatisticsDescription,
   contractError,
   GAME_CAPABILITIES,
   type GameCapability,
@@ -252,6 +253,26 @@ function validateRegistration(registration: GameCapabilityRegistration): void {
     throw contractError(
       'INVALID_REQUEST',
       'platform.game.registration.room_capacity',
+    );
+  if (registration.statistics?.description !== undefined)
+    assertGameServiceStatisticsDescription(registration.statistics.description);
+  if (
+    registration.statistics?.query !== undefined &&
+    registration.statistics.description === undefined
+  )
+    throw contractError(
+      'INVALID_REQUEST',
+      'platform.game.registration.statistics_description',
+    );
+  if (
+    capabilities.has('statistics') !==
+    (registration.statistics?.query !== undefined)
+  )
+    throw contractError(
+      'INVALID_REQUEST',
+      'platform.game.registration.capability_mismatch',
+      false,
+      { capability: 'statistics' },
     );
   if (registration.wallet && !capabilities.has('wallet'))
     throw contractError(

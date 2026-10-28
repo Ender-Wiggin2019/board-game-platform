@@ -6,6 +6,10 @@ import {
   assertDailyChallengeServiceResponse,
   assertGameResult,
   assertGameServiceDescription,
+  assertGameStatisticsPayload,
+  assertGameStatisticsQuery,
+  assertGameStatisticsServiceRequest,
+  assertGameStatisticsServiceResponse,
   assertJsonPayloadSize,
   assertMatchesSchema,
   assertSessionRoute,
@@ -16,6 +20,8 @@ import {
   type DailyChallengeServiceResponse,
   DEFAULT_JSON_LIMITS,
   type GameServiceDescription,
+  type GameStatisticsServiceRequest,
+  type GameStatisticsServiceResponse,
   isJsonValue,
   isPlatformError,
   type JsonValue,
@@ -64,6 +70,7 @@ import type {
   GameReplayQueries,
   GameServerDefinition,
   GameServerManifest,
+  GameStatisticsService,
 } from './types.js';
 
 /** HTTP options owned by the game process; runner fills backend and game scope. */
@@ -495,6 +502,22 @@ function assertDailyChallengeService(
   return service;
 }
 
+function assertStatisticsService(
+  services: { readonly statistics?: GameStatisticsService },
+  description: GameServiceDescription,
+): GameStatisticsService | undefined {
+  const service = services.statistics;
+  if (!service) {
+    if (description.statistics !== undefined)
+      throw contractError('CONFLICT', 'server.runner.description.statistics');
+    return undefined;
+  }
+  const advertised = description.statistics;
+  if (!advertised || !sameJson(service.description, advertised))
+    throw contractError('CONFLICT', 'server.runner.description.statistics');
+  return service;
+}
+
 function assertUnsupportedServices(services: {
   readonly platform?: unknown;
   readonly view?: unknown;
@@ -515,6 +538,7 @@ class RunnerBackend<Command extends JsonValue> extends EmbeddedBackendAdapter {
     >,
     private readonly replayQueries?: GameReplayQueries,
     private readonly dailyChallengeService?: GameDailyChallengeService,
+    private readonly statisticsService?: GameStatisticsService,
   ) {
     super(host);
   }
@@ -718,6 +742,48 @@ class RunnerBackend<Command extends JsonValue> extends EmbeddedBackendAdapter {
         return copy(response);
       }
     }
+  }
+
+  async statistics(
+    request: GameStatisticsServiceRequest,
+  ): Promise<GameStatisticsServiceResponse> {
+    assertGameStatisticsServiceRequest(request);
+    const service = this.statisticsService;
+    const description = this.serviceDescription.statistics;
+    if (!service || !description)
+      throw contractError('NOT_READY', 'server.runner.statistics.unavailable');
+    const route = request.route;
+    if (
+      route.gameId !== this.serviceDescription.gameId ||
+      route.releaseId !== this.serviceDescription.releaseId ||
+      route.backendBindingId !== this.serviceDescription.backendBindingId ||
+      route.storageBindingId !== this.serviceDescription.storageBindingId ||
+      route.ownershipEpoch !== this.serviceDescription.ownershipEpoch
+    )
+      throw contractError('FORBIDDEN', 'server.runner.statistics.route_denied');
+    if (!request.accessContext.scopes.includes('statistics:read'))
+      throw contractError('FORBIDDEN', 'server.runner.statistics.scope_denied');
+    const operation = description.operations.find(
+      (candidate) => candidate.key === request.operation,
+    );
+    if (!operation || operation.audience !== request.audience)
+      throw contractError(
+        'NOT_READY',
+        'server.runner.statistics.operation_unavailable',
+      );
+    assertGameStatisticsQuery(request.query, operation);
+    const response = await service.query(request);
+    assertGameStatisticsServiceResponse(response);
+    if (
+      response.operation !== request.operation ||
+      response.audience !== request.audience
+    )
+      throw contractError(
+        'CONFLICT',
+        'server.runner.statistics.response_mismatch',
+      );
+    assertGameStatisticsPayload(response.payload, operation);
+    return copy(response);
   }
 
   private async replaySummary(request: QueryOptionsRequest) {
@@ -933,6 +999,10 @@ class GameServerRunnerImpl<
       options.definition.services,
       options.description,
     );
+    const statisticsService = assertStatisticsService(
+      options.definition.services,
+      options.description,
+    );
     const facts = options.definition.services.facts ?? [];
     this.inbox = options.inbox;
     if (facts.length > 0) {
@@ -994,6 +1064,7 @@ class GameServerRunnerImpl<
       this.commandServices,
       this.replayQueries,
       dailyChallengeService,
+      statisticsService,
     );
     if (options.transport) {
       this.transport = new HttpHostTransport({

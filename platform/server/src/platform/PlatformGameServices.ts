@@ -34,6 +34,7 @@ import {
   GameCapabilityRegistry,
   GameCapabilityService,
   type GameCompletionInput,
+  type GameStatisticsCapability,
   PostgresGameAchievementStore,
 } from './capabilities/index.js';
 import { createRemoteDailyChallengeRegistration } from './daily-challenge/remote.js';
@@ -113,6 +114,7 @@ export class PlatformGameServices {
     RemoteSettlementHandler
   >();
   private readonly remoteDailyReleases = new Set<string>();
+  private readonly remoteStatisticsReleases = new Set<string>();
   private readonly remoteDailyRewards = new Map<
     string,
     DailyChallengeRewardPolicy
@@ -225,11 +227,55 @@ export class PlatformGameServices {
     this.remoteDailyReleases.add(key);
   }
 
+  private remoteStatisticsCapability(
+    input: RemoteSettlementReleaseInput,
+  ): GameStatisticsCapability | undefined {
+    const description = input.service.statistics;
+    if (!description) return undefined;
+    if (
+      input.approvedFeatures !== undefined &&
+      !input.approvedFeatures.includes('statistics')
+    )
+      return undefined;
+    return {
+      description,
+      query: async (request) => {
+        const backend = this.platform.releaseGame(
+          input.gameId,
+          input.releaseId,
+        ).backend;
+        if (!backend.statistics)
+          throw contractError(
+            'NOT_READY',
+            'platform.game.capability.statistics_unavailable',
+            true,
+          );
+        return backend.statistics(request);
+      },
+    };
+  }
+
   private async installRemoteSettlement(
     input: RemoteSettlementReleaseInput,
   ): Promise<void> {
-    if (input.policyBundle === undefined) return;
     const key = this.remoteSettlementKey(input.gameId, input.releaseId);
+    const statistics = this.remoteStatisticsCapability(input);
+    if (input.policyBundle === undefined) {
+      if (!statistics || this.remoteStatisticsReleases.has(key)) return;
+      this.registerInternal(
+        {
+          metadata: structuredClone(input.metadata),
+          releaseId: input.releaseId,
+          capabilities: ['statistics'],
+          policyVersions: [],
+          assets: [],
+          statistics,
+        },
+        {},
+      );
+      this.remoteStatisticsReleases.add(key);
+      return;
+    }
     const alreadyInstalled = this.remoteSettlements.has(key);
     const policyBundle =
       input.policyBundle as unknown as RemoteSettlementPolicyBundle;
@@ -286,7 +332,16 @@ export class PlatformGameServices {
       return;
     }
     this.registerInternal(
-      handler.registration,
+      statistics
+        ? {
+            ...handler.registration,
+            capabilities: [
+              ...handler.registration.capabilities,
+              'statistics' as const,
+            ],
+            statistics,
+          }
+        : handler.registration,
       {
         ratingPolicies: handler.ratingPolicies,
         messages: handler.messages,
@@ -294,6 +349,7 @@ export class PlatformGameServices {
       remoteDefinitions,
     );
     this.remoteSettlements.set(key, handler);
+    if (statistics) this.remoteStatisticsReleases.add(key);
     if (policyBundle.dailyChallengeRewards)
       this.remoteDailyRewards.set(
         key,

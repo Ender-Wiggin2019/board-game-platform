@@ -114,6 +114,53 @@ describe('configured game process', () => {
       resolveGameProcessSecret('secrets/escape', input.directory),
     ).rejects.toThrow('GAME_PROCESS_SECRET_REFERENCE_INVALID');
   });
+  it('opens an explicit statistics pool and derives a stable namespace', async () => {
+    const input = await fixture({
+      ...configuration,
+      statisticsStorage: {
+        driver: 'postgres',
+        urlEnv: 'STATISTICS_DATABASE_URL',
+        namespace: 'configured_game_statistics',
+      },
+    });
+    const process = await createConfiguredGameProcess({
+      env: {
+        ...input.env,
+        STATISTICS_DATABASE_URL:
+          'postgres://statistics:statistics@127.0.0.1:1/statistics',
+      },
+      describe: (identity): GameServiceDescription => ({
+        ...identity,
+        schemaVersion: 1,
+        metadata: {
+          gameId: identity.gameId,
+          name: 'Configured fixture',
+          description: 'Statistics pool fixture',
+          themeId: 'fixture',
+        },
+        modes: sequentialTurnFixture.modes,
+        setupSchema: sequentialTurnFixture.schemas.setup,
+      }),
+      createRunner: (options, resources) => {
+        expect(resources.statisticsNamespace).toBe(
+          'configured_game_statistics',
+        );
+        expect(resources.statisticsPool).toBeDefined();
+        return createGameServerRunner({
+          ...options,
+          definition: defineGameServer({
+            manifest: {
+              gameId: options.description.gameId,
+              releaseId: options.description.releaseId,
+            },
+            module: { ...sequentialTurnFixture, turn: () => null },
+            services: {},
+          }),
+        });
+      },
+    });
+    runners.push(process.runner);
+  });
   it('runs the real Host over separate control, authorization and signed player listeners', async () => {
     const input = await fixture();
     const process = await createConfiguredGameProcess({

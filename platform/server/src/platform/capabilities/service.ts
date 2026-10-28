@@ -1,12 +1,19 @@
 import {
   type AchievementCollection,
   assertGameResult,
+  assertGameStatisticsPayload,
+  assertGameStatisticsQuery,
+  assertGameStatisticsServiceRequest,
+  assertGameStatisticsServiceResponse,
   assertJsonPayloadSize,
   assertSessionRoute,
   contractError,
   type GameCatalogEntry,
   type GameProfileSummary,
   type GameRankingSummary,
+  type GameServiceStatisticsDescription,
+  type GameStatisticsServiceRequest,
+  type GameStatisticsServiceResponse,
   type GameWallet,
   type JsonValue,
 } from '@board-game/contracts';
@@ -396,7 +403,7 @@ export class GameCapabilityService {
     principalId?: string,
   ): Promise<JsonValue> {
     const registration = this.registry.resolve(gameId, releaseId);
-    if (!registration.statistics)
+    if (!registration.statistics?.read)
       throw contractError(
         'NOT_READY',
         'platform.game.capability.statistics_unavailable',
@@ -404,6 +411,75 @@ export class GameCapabilityService {
     const result = await registration.statistics.read(principalId);
     assertJsonPayloadSize(result, 512 * 1024, 'statistics');
     return clone(result);
+  }
+
+  public statisticsDescription(
+    gameId: string,
+    releaseId: string,
+  ): GameServiceStatisticsDescription | undefined {
+    const description = this.registry.resolve(gameId, releaseId).statistics
+      ?.description;
+    return description ? clone(description) : undefined;
+  }
+
+  public statisticsOperation(
+    gameId: string,
+    releaseId: string,
+    operation: string,
+  ) {
+    requireString(operation, 'operation');
+    return this.registry
+      .resolve(gameId, releaseId)
+      .statistics?.description?.operations.find(
+        (candidate) => candidate.key === operation,
+      );
+  }
+
+  public async queryStatistics(
+    gameId: string,
+    releaseId: string,
+    request: GameStatisticsServiceRequest,
+  ): Promise<GameStatisticsServiceResponse> {
+    assertGameStatisticsServiceRequest(request);
+    if (
+      request.route.gameId !== gameId ||
+      request.route.releaseId !== releaseId
+    )
+      throw contractError(
+        'FORBIDDEN',
+        'platform.game.capability.statistics_route_mismatch',
+      );
+    const registration = this.registry.resolve(gameId, releaseId);
+    const descriptor = registration.statistics?.description?.operations.find(
+      (candidate) =>
+        candidate.key === request.operation &&
+        candidate.audience === request.audience,
+    );
+    if (!descriptor)
+      throw contractError(
+        'NOT_READY',
+        'platform.game.capability.statistics_operation_unavailable',
+      );
+    assertGameStatisticsQuery(request.query, descriptor);
+    const query = registration.statistics?.query;
+    if (!query)
+      throw contractError(
+        'NOT_READY',
+        'platform.game.capability.statistics_unavailable',
+      );
+    const response = await query(request);
+    assertGameStatisticsServiceResponse(response);
+    if (
+      response.operation !== request.operation ||
+      response.audience !== request.audience
+    )
+      throw contractError(
+        'CONFLICT',
+        'platform.game.capability.statistics_response_mismatch',
+      );
+    assertGameStatisticsPayload(response.payload, descriptor);
+    assertJsonPayloadSize(response, 512 * 1024, 'statistics');
+    return clone(response);
   }
 
   public async complete(
