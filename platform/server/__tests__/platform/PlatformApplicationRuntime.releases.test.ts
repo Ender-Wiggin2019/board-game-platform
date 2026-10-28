@@ -52,6 +52,17 @@ const setupSchema = {
 
 function moduleFor(
   releaseId: string,
+  modes: GameServiceDescription['modes'] = [
+    {
+      id: 'solo',
+      entry: 'direct-solo',
+      minPlayers: 1,
+      maxPlayers: 1,
+      history: 'summary-and-replay',
+      platformRating: false,
+      concurrency: 'revision',
+    },
+  ],
 ): GameModule<
   State,
   JsonValue,
@@ -74,17 +85,7 @@ function moduleFor(
     releaseId,
     stateSchemaVersion: 1,
     viewSchemaVersion: 1,
-    modes: [
-      {
-        id: 'solo',
-        entry: 'direct-solo',
-        minPlayers: 1,
-        maxPlayers: 1,
-        history: 'summary-and-replay',
-        platformRating: false,
-        concurrency: 'revision',
-      },
-    ],
+    modes,
     schemas: {
       setup: setupSchema,
       command: setupSchema,
@@ -244,8 +245,9 @@ async function remoteFixture(
   releaseId: string,
   backendBindingId: string,
   storageBindingId: string,
+  modes?: GameServiceDescription['modes'],
 ): Promise<RemoteFixture> {
-  const module = moduleFor(releaseId);
+  const module = moduleFor(releaseId, modes);
   const storage = new MemoryStorageDriver();
   const host = new GameHost({
     registry: new GameRegistry().register(module),
@@ -593,6 +595,282 @@ describe('PlatformApplicationRuntime remote release registry', () => {
     expect(
       (await restored.views.view(reference, session.sessionId)).payload,
     ).toEqual({ count: 0 });
+  });
+
+  it('restores the channel-selected release instead of letting retained binding order win', async () => {
+    const store = new MemoryReleaseRegistryStore();
+    const firstPlatform = runtime(store);
+    const retained = await remoteFixture(
+      'retained-release',
+      'z-retained-binding',
+      'retained-storage',
+    );
+    const selected = await remoteFixture(
+      'selected-release',
+      'a-selected-binding',
+      'selected-storage',
+    );
+    fixtures.push(retained, selected);
+    await register(firstPlatform, retained);
+    await register(firstPlatform, selected);
+    await firstPlatform.switchRemoteChannel({
+      platformId,
+      gameId,
+      modeId: 'solo',
+      channel: 'stable',
+      expectedRevision: 0,
+      targetBackendBindingId: selected.description.backendBindingId,
+      operationId: 'selected-release-channel',
+    });
+
+    const restored = runtime(store);
+    await restored.restoreRemoteGames();
+
+    expect(restored.game(gameId).releaseId).toBe('selected-release');
+  });
+
+  it('leaves the current projection unchanged when channel CAS rejects', async () => {
+    const store = new MemoryReleaseRegistryStore();
+    const platform = runtime(store);
+    const first = await remoteFixture(
+      'cas-first-release',
+      'cas-first-binding',
+      'cas-first-storage',
+    );
+    const second = await remoteFixture(
+      'cas-second-release',
+      'cas-second-binding',
+      'cas-second-storage',
+    );
+    fixtures.push(first, second);
+    await register(platform, first);
+    await register(platform, second);
+    await platform.switchRemoteChannel({
+      platformId,
+      gameId,
+      modeId: 'solo',
+      channel: 'stable',
+      expectedRevision: 0,
+      targetBackendBindingId: first.description.backendBindingId,
+      operationId: 'cas-first-channel',
+    });
+
+    await expect(
+      platform.switchRemoteChannel({
+        platformId,
+        gameId,
+        modeId: 'solo',
+        channel: 'stable',
+        expectedRevision: 0,
+        targetBackendBindingId: second.description.backendBindingId,
+        operationId: 'cas-rejected-channel',
+      }),
+    ).rejects.toMatchObject({ code: 'REVISION_CONFLICT' });
+    expect(platform.game(gameId).releaseId).toBe('cas-first-release');
+  });
+
+  it('fails closed while stable mode channels diverge, then restores the converged release', async () => {
+    const modes: GameServiceDescription['modes'] = [
+      {
+        id: 'solo',
+        entry: 'direct-solo',
+        minPlayers: 1,
+        maxPlayers: 1,
+        history: 'summary-and-replay',
+        platformRating: false,
+        concurrency: 'revision',
+      },
+      {
+        id: 'arena',
+        entry: 'direct-solo',
+        minPlayers: 1,
+        maxPlayers: 1,
+        history: 'summary-and-replay',
+        platformRating: false,
+        concurrency: 'revision',
+      },
+    ];
+    const store = new MemoryReleaseRegistryStore();
+    const platform = runtime(store);
+    const first = await remoteFixture(
+      'multi-release-v1',
+      'multi-binding-v1',
+      'multi-storage-v1',
+      modes,
+    );
+    const second = await remoteFixture(
+      'multi-release-v2',
+      'multi-binding-v2',
+      'multi-storage-v2',
+      modes,
+    );
+    fixtures.push(first, second);
+    await register(platform, first);
+    await register(platform, second);
+
+    await platform.switchRemoteChannel({
+      platformId,
+      gameId,
+      modeId: 'solo',
+      channel: 'stable',
+      expectedRevision: 0,
+      targetBackendBindingId: first.description.backendBindingId,
+      operationId: 'multi-solo-v1',
+    });
+    expect(platform.game(gameId).releaseId).toBe('multi-release-v1');
+
+    await platform.switchRemoteChannel({
+      platformId,
+      gameId,
+      modeId: 'arena',
+      channel: 'stable',
+      expectedRevision: 0,
+      targetBackendBindingId: second.description.backendBindingId,
+      operationId: 'multi-arena-v2',
+    });
+    expect(() => platform.game(gameId)).toThrow('platform.game.unavailable');
+    expect(platform.releaseGame(gameId, 'multi-release-v2').releaseId).toBe(
+      'multi-release-v2',
+    );
+
+    await platform.switchRemoteChannel({
+      platformId,
+      gameId,
+      modeId: 'arena',
+      channel: 'stable',
+      expectedRevision: 1,
+      targetBackendBindingId: first.description.backendBindingId,
+      operationId: 'multi-arena-v1',
+    });
+    expect(platform.game(gameId).releaseId).toBe('multi-release-v1');
+  });
+
+  it('returns a committed CAS while a transient projection read fails, then recovers it', async () => {
+    const store = new MemoryReleaseRegistryStore();
+    const platform = runtime(store);
+    const first = await remoteFixture(
+      'recovery-release-v1',
+      'recovery-binding-v1',
+      'recovery-storage-v1',
+    );
+    const second = await remoteFixture(
+      'recovery-release-v2',
+      'recovery-binding-v2',
+      'recovery-storage-v2',
+    );
+    fixtures.push(first, second);
+    await register(platform, first);
+    await register(platform, second);
+    await platform.switchRemoteChannel({
+      platformId,
+      gameId,
+      modeId: 'solo',
+      channel: 'stable',
+      expectedRevision: 0,
+      targetBackendBindingId: first.description.backendBindingId,
+      operationId: 'recovery-v1',
+    });
+
+    vi.spyOn(store, 'listChannels').mockRejectedValueOnce(
+      new Error('temporary channel read failure'),
+    );
+    const committed = await platform.switchRemoteChannel({
+      platformId,
+      gameId,
+      modeId: 'solo',
+      channel: 'stable',
+      expectedRevision: 1,
+      targetBackendBindingId: second.description.backendBindingId,
+      operationId: 'recovery-v2',
+    });
+    expect(committed.releaseId).toBe('recovery-release-v2');
+    expect(() => platform.game(gameId)).toThrow('platform.game.unavailable');
+
+    const recovery = await platform.recoverOnce();
+    expect(recovery.maintenance).toContainEqual({
+      name: `remote-projection:${gameId}`,
+      failed: false,
+    });
+    expect(platform.game(gameId).releaseId).toBe('recovery-release-v2');
+  });
+
+  it('does not let an older deferred projection overwrite a newer channel sync', async () => {
+    const store = new MemoryReleaseRegistryStore();
+    const platform = runtime(store);
+    const first = await remoteFixture(
+      'generation-release-v1',
+      'generation-binding-v1',
+      'generation-storage-v1',
+    );
+    const second = await remoteFixture(
+      'generation-release-v2',
+      'generation-binding-v2',
+      'generation-storage-v2',
+    );
+    fixtures.push(first, second);
+    await register(platform, first);
+    await register(platform, second);
+    await platform.switchRemoteChannel({
+      platformId,
+      gameId,
+      modeId: 'solo',
+      channel: 'stable',
+      expectedRevision: 0,
+      targetBackendBindingId: first.description.backendBindingId,
+      operationId: 'generation-v1',
+    });
+
+    const originalListChannels = store.listChannels.bind(store);
+    let resolveFirstStarted: (() => void) | undefined;
+    const firstStarted = new Promise<void>((resolve) => {
+      resolveFirstStarted = resolve;
+    });
+    let releaseFirst: (() => void) | undefined;
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let firstSnapshot: Awaited<
+      ReturnType<MemoryReleaseRegistryStore['listChannels']>
+    > = [];
+    let listCall = 0;
+    vi.spyOn(store, 'listChannels').mockImplementation(async (id) => {
+      listCall += 1;
+      if (listCall === 1) {
+        resolveFirstStarted?.();
+        await firstGate;
+        return firstSnapshot;
+      }
+      return originalListChannels(id);
+    });
+
+    const firstSwitch = platform.switchRemoteChannel({
+      platformId,
+      gameId,
+      modeId: 'solo',
+      channel: 'stable',
+      expectedRevision: 1,
+      targetBackendBindingId: second.description.backendBindingId,
+      operationId: 'generation-v2',
+    });
+    await firstStarted;
+    firstSnapshot = await originalListChannels(platformId);
+
+    const secondSwitch = await platform.switchRemoteChannel({
+      platformId,
+      gameId,
+      modeId: 'solo',
+      channel: 'stable',
+      expectedRevision: 2,
+      targetBackendBindingId: first.description.backendBindingId,
+      operationId: 'generation-v1-rollback',
+    });
+    expect(secondSwitch.releaseId).toBe('generation-release-v1');
+    expect(platform.game(gameId).releaseId).toBe('generation-release-v1');
+
+    releaseFirst?.();
+    const firstResult = await firstSwitch;
+    expect(firstResult.releaseId).toBe('generation-release-v2');
+    expect(platform.game(gameId).releaseId).toBe('generation-release-v1');
   });
 
   it('runs readiness from the server-owned resolver before activating a staged binding', async () => {
