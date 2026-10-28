@@ -117,6 +117,9 @@ a.game-home-card:hover {
 .game-workspace-tabs {
   display: flex;
   gap: 1.5rem;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   overflow-x: auto;
   border-bottom: 1px solid var(--metal-edge-soft);
 }

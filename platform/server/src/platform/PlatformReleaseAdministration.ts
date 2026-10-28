@@ -22,6 +22,7 @@ import {
   type ReleaseBindingRecord,
   type ReleaseRecord,
   ReleaseRegistryError,
+  type UpdateBindingEndpointsInput,
 } from './releases/types.js';
 
 export interface RegisterStagedReleaseInput {
@@ -209,6 +210,43 @@ function stagedInput(value: unknown): RegisterStagedReleaseInput {
   };
 }
 
+function updateBindingEndpointsInput(
+  value: unknown,
+  platform: string,
+  backendBindingId: string,
+): UpdateBindingEndpointsInput {
+  assertJsonPayloadSize(value, 64 * 1024);
+  if (!isObject(value))
+    throw contractError('INVALID_REQUEST', 'platform.release.request_invalid');
+  keys(value, [
+    'expectedRevision',
+    'controlEndpoint',
+    'playerEndpoint',
+    'authorizationEndpoint',
+    'clientArtifactBaseUrl',
+    'serviceCredentialRef',
+  ]);
+  if (
+    !Number.isSafeInteger(value.expectedRevision) ||
+    (value.expectedRevision as number) < 0
+  )
+    throw contractError('INVALID_REQUEST', 'platform.request.revision');
+  const authorizationEndpoint =
+    value.authorizationEndpoint === undefined
+      ? undefined
+      : identifier(value.authorizationEndpoint);
+  return {
+    platformId: platform,
+    backendBindingId: identifier(backendBindingId),
+    expectedRevision: value.expectedRevision as number,
+    controlEndpoint: identifier(value.controlEndpoint),
+    playerEndpoint: identifier(value.playerEndpoint),
+    ...(authorizationEndpoint === undefined ? {} : { authorizationEndpoint }),
+    clientArtifactBaseUrl: identifier(value.clientArtifactBaseUrl),
+    serviceCredentialRef: identifier(value.serviceCredentialRef),
+  };
+}
+
 function registryError(error: unknown): never {
   if (!(error instanceof ReleaseRegistryError)) throw error;
   const code =
@@ -285,6 +323,25 @@ export class PlatformReleaseAdministration {
   ready(backendBindingId: string): Promise<ReleaseBindingRecord> {
     return this.runtime
       .readyRemoteBinding(identifier(backendBindingId))
+      .catch((error) => registryError(error));
+  }
+
+  updateBindingEndpoints(
+    backendBindingId: string,
+    value: unknown,
+  ): Promise<ReleaseBindingRecord> {
+    const input = updateBindingEndpointsInput(
+      value,
+      platformId(this.runtime),
+      backendBindingId,
+    );
+    const registry = registryOf(this.runtime);
+    return registry
+      .updateBindingEndpoints(input)
+      .then((binding) => {
+        this.runtime.refreshRemoteBindingMetadata?.(binding);
+        return binding;
+      })
       .catch((error) => registryError(error));
   }
 

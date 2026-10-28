@@ -169,6 +169,16 @@ export class PlatformReleaseController {
     return this.releases.ready(text(backendBindingId));
   }
 
+  @Post('admin/releases/bindings/:backendBindingId/endpoints')
+  @UseGuards(RolesGuard)
+  @Capabilities(ECapability.ADMIN_ACCESS, ECapability.GAME_MODIFY_ANY)
+  updateBindingEndpoints(
+    @Param('backendBindingId') backendBindingId: string,
+    @Body() body: unknown,
+  ) {
+    return this.releases.updateBindingEndpoints(text(backendBindingId), body);
+  }
+
   @Post('admin/releases/channels/switch')
   @UseGuards(RolesGuard)
   @Capabilities(ECapability.ADMIN_ACCESS, ECapability.GAME_MODIFY_ANY)

@@ -2,9 +2,14 @@ import type {
   GameServiceDescription,
   ReleaseManifest,
 } from '@board-game/contracts';
+import { ECapability } from '@board-platform/contracts/auth/permissions';
+import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { describe, expect, it, vi } from 'vitest';
+import { CAPABILITIES_KEY } from '@/auth/capabilities.decorator.js';
+import { RolesGuard } from '@/auth/roles.guard.js';
 import type { PlatformApplicationRuntime } from '@/platform/PlatformApplicationRuntime.js';
 import { PlatformReleaseAdministration } from '@/platform/PlatformReleaseAdministration.js';
+import { PlatformReleaseController } from '@/platform/PlatformReleaseController.js';
 import {
   type DesiredGameInstallation,
   MemoryReleaseRegistryStore,
@@ -109,6 +114,7 @@ function runtime(
     },
     releaseRegistry: registry,
     readyRemoteBinding: vi.fn(),
+    refreshRemoteBindingMetadata: vi.fn(),
     switchRemoteChannel: vi.fn(),
     catalog: vi.fn(() => []),
     sessions: {
@@ -141,6 +147,92 @@ async function ready(store: MemoryReleaseRegistryStore) {
 }
 
 describe('PlatformReleaseAdministration', () => {
+  it('keeps endpoint replacement behind the admin capabilities guard', () => {
+    const method = PlatformReleaseController.prototype.updateBindingEndpoints;
+    expect(Reflect.getMetadata(GUARDS_METADATA, method)).toContain(RolesGuard);
+    expect(Reflect.getMetadata(CAPABILITIES_KEY, method)).toEqual([
+      ECapability.ADMIN_ACCESS,
+      ECapability.GAME_MODIFY_ANY,
+    ]);
+  });
+
+  it('updates staged endpoints through strict CAS and blocks stale or active bindings', async () => {
+    const store = new MemoryReleaseRegistryStore();
+    const platform = runtime(store);
+    const administration = new PlatformReleaseAdministration(platform);
+    const { manifest, service } = fixture();
+    const registered = await administration.registerStaged({
+      manifest,
+      service,
+      approvedFeatures: [],
+      approvedModes: ['solo'],
+      binding: {
+        deployment: 'external',
+        controlEndpoint: 'https://control.example.test',
+        playerEndpoint: 'https://player.example.test',
+        authorizationEndpoint: 'https://authorization.example.test',
+        clientArtifactBaseUrl: 'https://cdn.example.test/assets/',
+        serviceCredentialRef: 'secret-ref',
+      },
+    });
+    const update = (expectedRevision: number) => ({
+      expectedRevision,
+      controlEndpoint: 'https://control-v2.example.test',
+      playerEndpoint: 'https://player-v2.example.test',
+      clientArtifactBaseUrl: 'https://cdn-v2.example.test/assets/',
+      serviceCredentialRef: 'secret-ref-v2',
+    });
+
+    const changed = await administration.updateBindingEndpoints(
+      bindingId,
+      update(registered.binding.revision),
+    );
+    expect(changed).toMatchObject({
+      status: 'staged',
+      revision: registered.binding.revision + 1,
+      controlEndpoint: 'https://control-v2.example.test',
+      playerEndpoint: 'https://player-v2.example.test',
+      authorizationEndpoint: 'https://authorization.example.test',
+      clientArtifactBaseUrl: 'https://cdn-v2.example.test/assets/',
+      serviceCredentialRef: 'secret-ref-v2',
+    });
+    expect(changed.readiness).toBeUndefined();
+    expect(platform.refreshRemoteBindingMetadata).toHaveBeenCalledWith(changed);
+
+    await expect(
+      administration.updateBindingEndpoints(
+        bindingId,
+        update(registered.binding.revision),
+      ),
+    ).rejects.toMatchObject({ envelope: { code: 'CONFLICT' } });
+    await expect(
+      Promise.resolve().then(() =>
+        administration.updateBindingEndpoints(bindingId, {
+          ...update(changed.revision),
+          unknown: true,
+        }),
+      ),
+    ).rejects.toMatchObject({ envelope: { code: 'INVALID_REQUEST' } });
+
+    const readyBinding = await ready(store);
+    const registry = new ReleaseRegistry(store);
+    await registry.compareAndSwapChannel({
+      platformId,
+      gameId,
+      modeId: mode.id,
+      channel: 'stable',
+      expectedRevision: 0,
+      targetBackendBindingId: bindingId,
+      operationId: 'endpoint-active-channel',
+    });
+    await expect(
+      administration.updateBindingEndpoints(
+        bindingId,
+        update(readyBinding.revision),
+      ),
+    ).rejects.toMatchObject({ envelope: { code: 'CONFLICT' } });
+  });
+
   it('exports configured intent, current channels and deduplicated history without changing either source', async () => {
     const store = new MemoryReleaseRegistryStore();
     const administration = new PlatformReleaseAdministration(runtime(store));
