@@ -19,6 +19,10 @@
       "types": "./dist/game-pages.d.ts",
       "import": "./dist/game-pages.js"
     },
+    "./DevelopmentGameProviders.js": {
+      "types": "./dist/DevelopmentGameProviders.d.ts",
+      "import": "./dist/DevelopmentGameProviders.js"
+    },
     "./*.js": {
       "types": "./dist/*.d.ts",
       "import": "./dist/*.js"

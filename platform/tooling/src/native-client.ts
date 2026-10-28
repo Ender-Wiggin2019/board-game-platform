@@ -147,12 +147,13 @@ async function copyPublicDirectories(
   }
 }
 
-function shellSource(): string {
+function shellSource(hasPlatformProviders: boolean): string {
   return `
 import './styles.css';
 const React = await import('react');
 const ReactDOM = await import('react-dom/client');
 const clientModule = await import('__BGP_GAME_CLIENT__');
+${hasPlatformProviders ? "const { createDevelopmentGameProviders } = await import('__BGP_DEVELOPMENT_PROVIDERS__');" : 'const createDevelopmentGameProviders = async (definition) => definition.providers || React.Fragment;'}
 const state = { account: null, token: null, metadata: null, room: null, session: null, route: null };
 const byId = (id) => document.getElementById(id);
 const output = byId('output');
@@ -270,14 +271,15 @@ async function renderGame() {
   if (!definition?.entry?.loadLive) throw new Error('Client export does not provide entry.loadLive');
   const loaded = await definition.entry.loadLive();
   const Component = loaded.default;
-  reactRoot.render(React.createElement(Component, {
+  const Providers = await createDevelopmentGameProviders(definition);
+  reactRoot.render(React.createElement(Providers, null, React.createElement(Component, {
     key: state.route.sessionId + ':' + state.account?.principalId,
     route: state.route,
     status: 'active',
     spectate: false,
     controlledPlayerId: state.account?.principalId,
     runtime: await createRuntime(),
-  }));
+  })));
 }
 
 async function boot() {
@@ -327,21 +329,32 @@ interface NativeClientStyles {
   readonly postcssPlugin: unknown;
 }
 
+function optionalClientExport(
+  clientRoot: string,
+  specifier: string,
+): string | undefined {
+  try {
+    return createRequire(join(clientRoot, 'package.json')).resolve(specifier);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== 'MODULE_NOT_FOUND' && code !== 'ERR_PACKAGE_PATH_NOT_EXPORTED')
+      throw error;
+    return undefined;
+  }
+}
+
 async function configureNativeClientStyles(
   clientRoot: string,
   directory: string,
 ): Promise<NativeClientStyles> {
-  const clientRequire = createRequire(join(clientRoot, 'package.json'));
-  let globalsEntry: string | undefined;
-  try {
-    globalsEntry = clientRequire.resolve(
-      '@board-platform/client/styles/globals.css',
-    );
-  } catch (error) {
-    // Games that consume only the core SDK do not need platform theme styles.
-    if ((error as NodeJS.ErrnoException).code !== 'MODULE_NOT_FOUND')
-      throw error;
-  }
+  const globalsEntry = optionalClientExport(
+    clientRoot,
+    '@board-platform/client/styles/globals.css',
+  );
+  const layoutEntry = optionalClientExport(
+    clientRoot,
+    '@board-game/components/layout.css',
+  );
   const platformRoot = globalsEntry
     ? packageRootForFile(globalsEntry)
     : undefined;
@@ -361,6 +374,7 @@ async function configureNativeClientStyles(
   const source = [
     `@import ${JSON.stringify(tailwindEntry)};`,
     ...(globalsEntry ? [`@import ${JSON.stringify(globalsEntry)};`] : []),
+    ...(layoutEntry ? [`@import ${JSON.stringify(layoutEntry)};`] : []),
     ...(configEntry ? [`@config ${JSON.stringify(configEntry)};`] : []),
     `@source ${JSON.stringify(join(clientRoot, 'dist'))};`,
     ...(platformRoot
@@ -399,10 +413,16 @@ export async function startNativeDevelopmentClient(
   const directory = await mkdtemp(join(tmpdir(), 'bgp-native-dev-'));
   await writeFile(join(directory, 'index.html'), shellHtml());
   await mkdir(join(directory, 'src'), { recursive: true });
-  await writeFile(join(directory, 'src', 'main.js'), shellSource());
   const vite = await loadVite(options.gameClientEntry);
   const clientRoot = packageRootForFile(options.gameClientEntry);
   const styles = await configureNativeClientStyles(clientRoot, directory);
+  const providersEntry = styles.platformRoot
+    ? packageExportEntry(styles.platformRoot, './DevelopmentGameProviders.js')
+    : undefined;
+  await writeFile(
+    join(directory, 'src', 'main.js'),
+    shellSource(Boolean(providersEntry)),
+  );
   const canonicalDirectory = realpathSync(directory);
   const publicDirectory = join(directory, 'public');
   await copyPublicDirectories(
@@ -442,6 +462,14 @@ export async function startNativeDevelopmentClient(
     resolve: {
       alias: [
         { find: '__BGP_GAME_CLIENT__', replacement: options.gameClientEntry },
+        ...(providersEntry
+          ? [
+              {
+                find: '__BGP_DEVELOPMENT_PROVIDERS__',
+                replacement: providersEntry,
+              },
+            ]
+          : []),
         {
           find: 'react-dom/client',
           replacement: clientRequire.resolve('react-dom/client'),
