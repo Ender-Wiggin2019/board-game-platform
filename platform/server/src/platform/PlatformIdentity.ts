@@ -177,18 +177,23 @@ export class PlatformIdentity {
       if (
         authorizationContext.identity.principalId !== identity.principalId ||
         authorizationContext.identity.authEpoch !== identity.authEpoch ||
+        authorizationContext.identity.authSessionId !==
+          identity.authSessionId ||
         authorizationContext.account.id !== identity.principalId ||
         authorizationContext.account.accountStatus !== 'active'
       )
         return false;
       account = authorizationContext.account;
     } else {
-      const reference = epochReference(
-        identity.principalId,
-        identity.authEpoch,
-      );
-      const current = await this.resolveCurrent(reference);
-      if (current.identity.authEpoch !== identity.authEpoch) return false;
+      const current = await this.resolveIdentityForAuthorization(identity);
+      if (
+        !matchesCurrentEpoch(
+          identity.principalId,
+          identity.authEpoch,
+          current.identity.authEpoch,
+        )
+      )
+        return false;
       account = current.account;
     }
     if (
@@ -619,11 +624,16 @@ export class PlatformIdentity {
       return;
     }
     if (context.scopes.includes('session:admin')) {
-      const current = await this.resolveCurrent(
-        epochReference(context.principalId, context.authEpoch),
+      const current = await this.resolveHostIdentity(
+        context.principalId,
+        context.authEpoch,
       );
       if (
-        context.authEpoch !== current.identity.authEpoch ||
+        !matchesCurrentEpoch(
+          context.principalId,
+          context.authEpoch,
+          current.identity.authEpoch,
+        ) ||
         !['control', 'automation-diagnostics'].includes(operation) ||
         (operation === 'control' &&
           !context.scopes.includes('session:control')) ||
@@ -638,6 +648,21 @@ export class PlatformIdentity {
         throw contractError('FORBIDDEN', 'platform.admin.denied');
       return;
     }
+
+    // Player AccessContexts intentionally omit authSessionId. Recheck the
+    // stable account epoch before any game hook can allow the request.
+    const current = await this.resolveHostIdentity(
+      context.principalId,
+      context.authEpoch,
+    );
+    if (
+      !matchesCurrentEpoch(
+        context.principalId,
+        context.authEpoch,
+        current.identity.authEpoch,
+      )
+    )
+      throw contractError('FORBIDDEN', 'platform.session.denied');
 
     const decision = await this.hooks.authorizeHost?.({
       context,
@@ -667,14 +692,11 @@ export class PlatformIdentity {
       throw contractError('NOT_READY', 'platform.session.starting', true);
     if (
       !(await this.authorize(
-        {
-          principalId: context.principalId,
-          authEpoch: context.authEpoch,
-          active: true,
-        },
+        current.identity,
         start.admission,
         operation as SessionGatewayOperation,
         context.scopes,
+        current,
       ))
     )
       throw contractError('FORBIDDEN', 'platform.session.denied');
@@ -689,6 +711,25 @@ export class PlatformIdentity {
     principalId: string,
   ): Promise<PlatformIdentityAccount | undefined> {
     return this.accounts.account(principalId);
+  }
+
+  private resolveIdentityForAuthorization(identity: ResolvedIdentity) {
+    if (identity.authSessionId !== undefined)
+      return this.resolveCurrent({
+        principalId: identity.principalId,
+        authSessionId: identity.authSessionId,
+      });
+    if (isStableAccountEpoch(identity.principalId, identity.authEpoch))
+      return this.accounts.resolveStableEpoch(identity.principalId);
+    return this.resolveCurrent(
+      epochReference(identity.principalId, identity.authEpoch),
+    );
+  }
+
+  private resolveHostIdentity(principalId: string, authEpoch: string) {
+    if (isStableAccountEpoch(principalId, authEpoch))
+      return this.accounts.resolveStableEpoch(principalId);
+    return this.resolveCurrent(epochReference(principalId, authEpoch));
   }
 }
 
@@ -774,4 +815,45 @@ function epochReference(
     // The public API never accepts an auth epoch; malformed internal assertions fail closed.
   }
   throw contractError('UNAUTHENTICATED', 'platform.identity.epoch');
+}
+
+function isStableAccountEpoch(principalId: string, epoch: string): boolean {
+  try {
+    const value: unknown = JSON.parse(epoch);
+    return (
+      Array.isArray(value) &&
+      value.length === 3 &&
+      value[0] === principalId &&
+      value.slice(1).every((part) => Number.isSafeInteger(part) && part >= 0)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function matchesCurrentEpoch(
+  principalId: string,
+  requestedEpoch: string,
+  currentEpoch: string,
+): boolean {
+  if (requestedEpoch === currentEpoch) return true;
+  try {
+    const requested: unknown = JSON.parse(requestedEpoch);
+    const current: unknown = JSON.parse(currentEpoch);
+    return (
+      Array.isArray(requested) &&
+      requested.length === 3 &&
+      typeof requested[0] === 'string' &&
+      requested[0] !== principalId &&
+      Number.isSafeInteger(requested[1]) &&
+      Number.isSafeInteger(requested[2]) &&
+      Array.isArray(current) &&
+      current.length === 3 &&
+      current[0] === principalId &&
+      current[1] === requested[1] &&
+      current[2] === requested[2]
+    );
+  } catch {
+    return false;
+  }
 }

@@ -17,6 +17,7 @@ import {
   type AccessContext,
   type AuthorizationVersionAdvanceInput,
   type AuthorizationVersionKey,
+  type AuthorizationVersionListInput,
   type AuthorizationVersionRecord,
   type AuthorizationVersionRevokeInput,
   type AuthorizationVersionStore,
@@ -583,6 +584,20 @@ function validateRevokeInput(input: AuthorizationVersionRevokeInput): void {
   requireStoreInteger(input.authorizationRevision, 'authorizationRevision');
 }
 
+function validateListInput(input: AuthorizationVersionListInput): void {
+  requireStoreObject(input, 'authorization list');
+  requireStoreString(input.platformId, 'platformId');
+  requireStoreString(input.principalId, 'principalId');
+  if (input.afterSessionId !== undefined)
+    requireStoreString(input.afterSessionId, 'afterSessionId');
+  if (
+    !Number.isSafeInteger(input.limit) ||
+    input.limit < 1 ||
+    input.limit > 100
+  )
+    storeFail('INVALID_ARGUMENT', 'authorization list limit must be 1..100');
+}
+
 function rowJson(value: unknown): unknown {
   if (value === null || value === undefined) return null;
   return typeof value === 'string' ? JSON.parse(value) : value;
@@ -736,6 +751,29 @@ export class MemoryAuthorizationVersionStore
       this.records.set(key, revoked);
       return copy(revoked);
     });
+  }
+
+  async listForPrincipal(
+    input: AuthorizationVersionListInput,
+  ): Promise<readonly AuthorizationVersionRecord[]> {
+    validateListInput(input);
+    return [...this.records.values()]
+      .filter(
+        (record) =>
+          record.platformId === input.platformId &&
+          record.principalId === input.principalId &&
+          (input.afterSessionId === undefined ||
+            record.sessionId > input.afterSessionId),
+      )
+      .sort((left, right) =>
+        left.sessionId < right.sessionId
+          ? -1
+          : left.sessionId > right.sessionId
+            ? 1
+            : 0,
+      )
+      .slice(0, input.limit)
+      .map(copy);
   }
 
   async close(): Promise<void> {
@@ -987,6 +1025,26 @@ export class PostgresAuthorizationVersionStore
     } finally {
       client.release();
     }
+  }
+
+  async listForPrincipal(
+    input: AuthorizationVersionListInput,
+  ): Promise<readonly AuthorizationVersionRecord[]> {
+    validateListInput(input);
+    const result = await this.pool.query(
+      `SELECT * FROM ${tableName(this.schema)}
+       WHERE platform_id = $1 AND principal_id = $2
+         AND ($3::text IS NULL OR session_id COLLATE "C" > $3::text COLLATE "C")
+       ORDER BY session_id COLLATE "C" ASC
+       LIMIT $4`,
+      [
+        input.platformId,
+        input.principalId,
+        input.afterSessionId ?? null,
+        input.limit,
+      ],
+    );
+    return result.rows.map(recordFromRow);
   }
 
   async close(): Promise<void> {

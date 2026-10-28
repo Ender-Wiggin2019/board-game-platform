@@ -1,9 +1,14 @@
+import { generateKeyPairSync } from 'node:crypto';
 import type {
   MatchAdmission,
   PlatformRoom,
   SessionRoute,
 } from '@board-game/contracts';
 import type { AdmissionStore, StartOperation } from '@board-game/core';
+import {
+  MemoryAuthorizationVersionStore,
+  verifyPlayerCredential,
+} from '@board-game/server';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { findActiveSession } from '@/auth/active-session.js';
@@ -11,6 +16,7 @@ import {
   PlatformIdentity,
   type PlatformIdentityAccount,
 } from '@/platform/PlatformIdentity.js';
+import { PlatformPlayerConnections } from '@/platform/PlatformPlayerConnections.js';
 
 vi.mock('@/auth/active-session.js', () => ({ findActiveSession: vi.fn() }));
 
@@ -201,6 +207,277 @@ describe('generic platform identity', () => {
     ).resolves.toBe(false);
     await expect(
       fixture.identity.notificationAccess(setiRoute),
+    ).rejects.toMatchObject({ envelope: { code: 'FORBIDDEN' } });
+  });
+
+  it('keeps the account epoch stable across active login sessions while rechecking each session', async () => {
+    const fixture = setup();
+    const activeSessions = new Set(['auth-alice', 'auth-mobile']);
+    vi.mocked(findActiveSession).mockImplementation(
+      async (_db, authSessionId, principalId) =>
+        activeSessions.has(authSessionId)
+          ? {
+              id: authSessionId,
+              userId: principalId ?? 'alice',
+              csrfHash: 'unused',
+            }
+          : undefined,
+    );
+
+    const desktop = await fixture.identity.resolve({
+      principalId: 'alice',
+      authSessionId: 'auth-alice',
+    });
+    const mobile = await fixture.identity.resolve({
+      principalId: 'alice',
+      authSessionId: 'auth-mobile',
+    });
+
+    expect(mobile.authEpoch).toBe(desktop.authEpoch);
+    expect(desktop.authSessionId).toBe('auth-alice');
+    expect(mobile.authSessionId).toBe('auth-mobile');
+    await expect(
+      fixture.identity.authorize(desktop, brassAdmission, 'view'),
+    ).resolves.toBe(true);
+
+    activeSessions.delete('auth-alice');
+    await expect(
+      fixture.identity.authorize(desktop, brassAdmission, 'view'),
+    ).rejects.toMatchObject({ envelope: { code: 'UNAUTHENTICATED' } });
+    await expect(
+      fixture.identity.authorize(mobile, brassAdmission, 'view'),
+    ).resolves.toBe(true);
+
+    const account = fixture.accounts.get('alice');
+    if (!account) throw new Error('account fixture missing');
+    account.permissionVersion += 1;
+    const current = await fixture.identity.resolve({
+      principalId: 'alice',
+      authSessionId: 'auth-mobile',
+    });
+    expect(current.authEpoch).not.toBe(mobile.authEpoch);
+    await expect(
+      fixture.identity.authorize(mobile, brassAdmission, 'view'),
+    ).resolves.toBe(false);
+  });
+
+  it('keeps both active login credentials valid through the real player connection and signer', async () => {
+    const fixture = setup();
+    const activeSessions = new Set(['auth-alice', 'auth-mobile']);
+    vi.mocked(findActiveSession).mockImplementation(
+      async (_db, authSessionId, principalId) =>
+        activeSessions.has(authSessionId)
+          ? {
+              id: authSessionId,
+              userId: principalId ?? 'alice',
+              csrfHash: 'unused',
+            }
+          : undefined,
+    );
+    const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+    const platformStore = new MemoryAuthorizationVersionStore({
+      now: () => 10,
+    });
+    const gameStore = new MemoryAuthorizationVersionStore({ now: () => 10 });
+    const service = new PlatformPlayerConnections({
+      platformId: 'platform-1',
+      audience: 'brass-player-service',
+      sessions: {
+        descriptor: async (_reference, sessionId) => {
+          if (sessionId !== brassRoute.sessionId)
+            throw new Error('fixture session not found');
+          return {
+            authority: 'platform' as const,
+            route: brassRoute,
+            status: 'active' as const,
+          };
+        },
+      },
+      admission: {
+        getAdmission: async (sessionId) =>
+          sessionId === brassRoute.sessionId ? brassAdmission : null,
+      },
+      identity: fixture.identity,
+      authorizationStore: platformStore,
+      resolveAuthorizationSync: async () => ({
+        advance: (input) => gameStore.advance(input),
+        revoke: (input) => gameStore.revoke(input),
+      }),
+      resolvePlayerEndpoint: async () => 'http://127.0.0.1:43123/player',
+      privateKey,
+      now: () => 10,
+    });
+    const verify = (token: string) =>
+      verifyPlayerCredential({
+        token,
+        publicKey,
+        expectedPlatformId: 'platform-1',
+        expectedAudience: 'brass-player-service',
+        expectedRoute: brassRoute,
+        authorizationStore: gameStore,
+        now: 10,
+      });
+
+    const desktop = await service.connect(
+      { principalId: 'alice', authSessionId: 'auth-alice' },
+      brassRoute.sessionId,
+    );
+    const mobile = await service.connect(
+      { principalId: 'alice', authSessionId: 'auth-mobile' },
+      brassRoute.sessionId,
+    );
+    const stored = await platformStore.get({
+      platformId: 'platform-1',
+      sessionId: brassRoute.sessionId,
+      principalId: 'alice',
+    });
+    expect(stored).toMatchObject({
+      authorizationRevision: 1,
+      authEpoch: JSON.stringify(['alice', 4, 7]),
+    });
+    await expect(
+      gameStore.get({
+        platformId: 'platform-1',
+        sessionId: brassRoute.sessionId,
+        principalId: 'alice',
+      }),
+    ).resolves.toMatchObject({ authorizationRevision: 1 });
+    expect(mobile.expiresAt).toBe(desktop.expiresAt);
+    await expect(verify(desktop.token)).resolves.toMatchObject({
+      principalId: 'alice',
+      seatId: 'brass-seat-1',
+    });
+    await expect(verify(mobile.token)).resolves.toMatchObject({
+      principalId: 'alice',
+      seatId: 'brass-seat-1',
+    });
+
+    const account = fixture.accounts.get('alice');
+    if (!account) throw new Error('account fixture missing');
+    account.permissionVersion += 1;
+    const refreshed = await service.connect(
+      { principalId: 'alice', authSessionId: 'auth-mobile' },
+      brassRoute.sessionId,
+    );
+    await expect(verify(desktop.token)).rejects.toMatchObject({
+      code: 'AUTHORIZATION_MISMATCH',
+    });
+    await expect(verify(mobile.token)).rejects.toMatchObject({
+      code: 'AUTHORIZATION_MISMATCH',
+    });
+    await expect(verify(refreshed.token)).resolves.toMatchObject({
+      principalId: 'alice',
+    });
+    await expect(
+      gameStore.get({
+        platformId: 'platform-1',
+        sessionId: brassRoute.sessionId,
+        principalId: 'alice',
+      }),
+    ).resolves.toMatchObject({ authorizationRevision: 2 });
+
+    activeSessions.delete('auth-alice');
+    await expect(
+      service.connect(
+        { principalId: 'alice', authSessionId: 'auth-alice' },
+        brassRoute.sessionId,
+      ),
+    ).rejects.toMatchObject({ envelope: { code: 'UNAUTHENTICATED' } });
+  });
+
+  it('rechecks stable account epochs for host player and admin contexts', async () => {
+    const fixture = setup();
+    const identity = await fixture.identity.resolve({
+      principalId: 'alice',
+      authSessionId: 'auth-alice',
+    });
+    const access = {
+      principalId: identity.principalId,
+      authEpoch: identity.authEpoch,
+      scopes: ['session:view', 'session:command'],
+    } as const;
+
+    await expect(
+      fixture.identity.authorizeHost(access, 'summary', brassRoute),
+    ).resolves.toBeUndefined();
+    await expect(
+      fixture.identity.authorizeHost(access, 'command', brassRoute),
+    ).resolves.toBeUndefined();
+
+    const account = fixture.accounts.get('alice');
+    if (!account) throw new Error('account fixture missing');
+    account.permissionVersion += 1;
+    await expect(
+      fixture.identity.authorizeHost(access, 'summary', brassRoute),
+    ).rejects.toMatchObject({ envelope: { code: 'FORBIDDEN' } });
+
+    account.permissionVersion -= 1;
+    account.accountStatus = 'suspended';
+    await expect(
+      fixture.identity.authorizeHost(access, 'summary', brassRoute),
+    ).rejects.toMatchObject({ envelope: { code: 'UNAUTHENTICATED' } });
+  });
+
+  it('accepts a legacy session-first epoch while its login session remains active', async () => {
+    const fixture = setup();
+    const legacyAccess = {
+      principalId: 'alice',
+      authEpoch: JSON.stringify(['auth-alice', 4, 7]),
+      scopes: ['session:view'],
+    } as const;
+
+    await expect(
+      fixture.identity.authorizeHost(legacyAccess, 'summary', brassRoute),
+    ).resolves.toBeUndefined();
+    vi.mocked(findActiveSession).mockResolvedValue(undefined);
+    await expect(
+      fixture.identity.authorizeHost(legacyAccess, 'summary', brassRoute),
+    ).rejects.toMatchObject({ envelope: { code: 'UNAUTHENTICATED' } });
+  });
+
+  it('does not let a game host hook bypass stable account checks', async () => {
+    const fixture = setup();
+    const hook = vi.fn(async () => 'allow' as const);
+    const hooked = new PlatformIdentity(fixture.db, fixture.store, 'brass', {
+      authorizeHost: hook,
+    });
+    const identity = await hooked.resolve({
+      principalId: 'alice',
+      authSessionId: 'auth-alice',
+    });
+    const access = {
+      principalId: identity.principalId,
+      authEpoch: identity.authEpoch,
+      scopes: ['session:view'],
+    } as const;
+
+    await expect(
+      hooked.authorizeHost(access, 'summary', brassRoute),
+    ).resolves.toBeUndefined();
+    const account = fixture.accounts.get('alice');
+    if (!account) throw new Error('account fixture missing');
+    account.accountStatus = 'suspended';
+    await expect(
+      hooked.authorizeHost(access, 'summary', brassRoute),
+    ).rejects.toMatchObject({ envelope: { code: 'UNAUTHENTICATED' } });
+    expect(hook).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps admin role checks on stable host contexts', async () => {
+    const fixture = setup();
+    const account = fixture.accounts.get('alice');
+    if (!account) throw new Error('account fixture missing');
+    account.role = 'admin';
+    const access = await fixture.identity.adminAccess(
+      { principalId: 'alice', authSessionId: 'auth-alice' },
+      brassRoute,
+    );
+    await expect(
+      fixture.identity.authorizeHost(access, 'control', brassRoute),
+    ).resolves.toBeUndefined();
+    account.role = 'player';
+    await expect(
+      fixture.identity.authorizeHost(access, 'control', brassRoute),
     ).rejects.toMatchObject({ envelope: { code: 'FORBIDDEN' } });
   });
 

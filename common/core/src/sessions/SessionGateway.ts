@@ -494,6 +494,9 @@ export class SessionGateway {
       principalId: resolved.principalId,
       authEpoch: resolved.authEpoch,
       active: resolved.active,
+      ...(resolved.authSessionId === undefined
+        ? {}
+        : { authSessionId: resolved.authSessionId }),
     };
     if (identity.principalId !== reference.principalId || !identity.active)
       throw contractError(

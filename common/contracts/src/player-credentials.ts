@@ -54,6 +54,15 @@ export interface AuthorizationVersionRevokeInput
   readonly authorizationRevision: number;
 }
 
+export interface AuthorizationVersionListInput {
+  readonly platformId: string;
+  readonly principalId: string;
+  /** Stable lexicographic session cursor; omit for the first page. */
+  readonly afterSessionId?: string;
+  /** Bounded page size. Stores must reject values outside 1..100. */
+  readonly limit: number;
+}
+
 export interface AuthorizationVersionStore {
   /** Production runners must require a durable store; memory is development-only. */
   readonly capabilities?: {
@@ -66,6 +75,10 @@ export interface AuthorizationVersionStore {
   revoke(
     input: AuthorizationVersionRevokeInput,
   ): Promise<AuthorizationVersionRecord>;
+  /** Optional bounded, stable session-id pagination for account revocation. */
+  readonly listForPrincipal?: (
+    input: AuthorizationVersionListInput,
+  ) => Promise<readonly AuthorizationVersionRecord[]>;
   migrate?(): Promise<void>;
   close?(): Promise<void>;
 }

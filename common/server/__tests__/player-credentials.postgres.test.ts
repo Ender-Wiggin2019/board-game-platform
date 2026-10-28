@@ -81,4 +81,33 @@ postgresSuite('PostgresAuthorizationVersionStore', () => {
     expect(await afterRevokeRestart.get(key)).toEqual(revoked);
     expect(revoked.revokedAt).toEqual(expect.any(Number));
   });
+
+  it('paginates a principal by stable session id', async () => {
+    const sessions = ['credential-pg-session-a', 'credential-pg-session-b'];
+    for (const sessionId of sessions) {
+      await store.advance({
+        ...advance,
+        sessionId,
+        route: { ...route, sessionId },
+      });
+    }
+    await expect(
+      store.listForPrincipal({
+        platformId: key.platformId,
+        principalId: key.principalId,
+        limit: 1,
+      }),
+    ).resolves.toMatchObject([{ sessionId: 'credential-pg-session' }]);
+    await expect(
+      store.listForPrincipal({
+        platformId: key.platformId,
+        principalId: key.principalId,
+        afterSessionId: 'credential-pg-session',
+        limit: 2,
+      }),
+    ).resolves.toMatchObject([
+      { sessionId: 'credential-pg-session-a' },
+      { sessionId: 'credential-pg-session-b' },
+    ]);
+  });
 });

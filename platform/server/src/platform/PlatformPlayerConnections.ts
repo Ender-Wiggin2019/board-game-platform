@@ -9,6 +9,7 @@ import {
   controlsParticipant,
   type MatchAdmission,
   type SessionRoute,
+  toErrorEnvelope,
 } from '@board-game/contracts';
 import type {
   AdmissionStore,
@@ -65,6 +66,19 @@ export interface PlatformPlayerRevokeResult {
   readonly route: SessionRoute;
   readonly authorizationRevision: number;
   readonly revokedAt: number;
+}
+
+export interface PlatformPlayerRevocationFailure {
+  readonly sessionId?: string;
+  readonly route?: SessionRoute;
+  readonly code: string;
+  readonly retryable: boolean;
+}
+
+export interface PlatformPlayerRevokeAccountResult {
+  readonly principalId: string;
+  readonly revoked: readonly PlatformPlayerRevokeResult[];
+  readonly failures: readonly PlatformPlayerRevocationFailure[];
 }
 
 export interface PlatformPlayerConnectionsOptions {
@@ -186,6 +200,29 @@ function endpoint(value: unknown): string {
   if (typeof value !== 'string' || value.length === 0 || value.length > 2_048)
     throw contractError('INVALID_REQUEST', 'platform.player.endpoint.invalid');
   return value;
+}
+
+function revocationFailure(
+  error: unknown,
+  record?: Pick<AuthorizationVersionRecord, 'sessionId' | 'route'>,
+): PlatformPlayerRevocationFailure {
+  const location = record
+    ? { sessionId: record.sessionId, route: copy(record.route) }
+    : {};
+  if (error instanceof AuthorizationTransportError)
+    return {
+      ...location,
+      code: error.code,
+      retryable: error.retryable,
+    };
+  if (error instanceof AuthorizationVersionStoreError)
+    return {
+      ...location,
+      code: `AUTHORIZATION_${error.code}`,
+      retryable: false,
+    };
+  const envelope = toErrorEnvelope(error);
+  return { ...location, code: envelope.code, retryable: envelope.retryable };
 }
 
 function selectedSeat(
@@ -453,6 +490,93 @@ export class PlatformPlayerConnections {
       authorizationRevision: revoked.authorizationRevision,
       revokedAt: revoked.revokedAt,
     };
+  }
+
+  /**
+   * Revokes every durable authorization for an account on this platform.
+   * Pages are ordered by session id and each item is attempted even when a
+   * previous game's remote sync is unavailable; callers receive the complete
+   * report and can retry the failed entries.
+   */
+  async revokeAccount(
+    principalId: string,
+  ): Promise<PlatformPlayerRevokeAccountResult> {
+    if (typeof principalId !== 'string' || principalId.length === 0)
+      throw contractError(
+        'INVALID_REQUEST',
+        'platform.player.principal_invalid',
+      );
+    const authorizationStore = this.options.authorizationStore;
+    if (typeof authorizationStore.listForPrincipal !== 'function')
+      throw contractError(
+        'NOT_READY',
+        'platform.player.authorization_listing_unavailable',
+        true,
+      );
+    const revoked: PlatformPlayerRevokeResult[] = [];
+    const failures: PlatformPlayerRevocationFailure[] = [];
+    let afterSessionId: string | undefined;
+    while (true) {
+      let page: readonly AuthorizationVersionRecord[];
+      try {
+        page = await authorizationStore.listForPrincipal({
+          platformId: this.options.platformId,
+          principalId,
+          limit: 100,
+          ...(afterSessionId === undefined ? {} : { afterSessionId }),
+        });
+      } catch (error) {
+        failures.push(revocationFailure(error));
+        break;
+      }
+      if (!Array.isArray(page)) {
+        failures.push({
+          code: 'AUTHORIZATION_LIST_INVALID',
+          retryable: false,
+        });
+        break;
+      }
+      if (page.length === 0) break;
+      for (const record of page) {
+        if (
+          record.platformId !== this.options.platformId ||
+          record.principalId !== principalId ||
+          record.route.sessionId !== record.sessionId
+        ) {
+          failures.push(
+            revocationFailure(
+              contractError(
+                'INTERNAL',
+                'platform.player.authorization_listing_invalid',
+              ),
+              record,
+            ),
+          );
+          continue;
+        }
+        try {
+          revoked.push(
+            await this.revokePrincipal({
+              route: record.route,
+              principalId,
+            }),
+          );
+        } catch (error) {
+          failures.push(revocationFailure(error, record));
+        }
+      }
+      const lastSessionId = page[page.length - 1]?.sessionId;
+      if (!lastSessionId || lastSessionId === afterSessionId) {
+        failures.push({
+          code: 'AUTHORIZATION_PAGINATION_INVALID',
+          retryable: false,
+        });
+        break;
+      }
+      afterSessionId = lastSessionId;
+      if (page.length < 100) break;
+    }
+    return { principalId, revoked, failures };
   }
 
   private async ensureAuthorization(input: {

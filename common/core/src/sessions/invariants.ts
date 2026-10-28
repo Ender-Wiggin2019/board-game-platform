@@ -77,6 +77,8 @@ export function assertResolvedIdentity(
   const identity = requireObject(value, 'resolvedIdentity');
   requireIdentifier(identity.principalId, 'resolvedIdentity.principalId');
   requireIdentifier(identity.authEpoch, 'resolvedIdentity.authEpoch');
+  if (identity.authSessionId !== undefined)
+    requireIdentifier(identity.authSessionId, 'resolvedIdentity.authSessionId');
   if (typeof identity.active !== 'boolean')
     invalid('platform.gateway.resolvedIdentity.active');
 }

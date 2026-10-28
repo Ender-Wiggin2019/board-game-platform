@@ -28,6 +28,11 @@ export interface ResolvedIdentity {
   readonly principalId: string;
   readonly authEpoch: string;
   readonly active: boolean;
+  /**
+   * Trusted server-side login-session binding. This is intentionally not
+   * copied into AccessContext or player credentials.
+   */
+  readonly authSessionId?: string;
 }
 
 export type SessionGatewayOperation =

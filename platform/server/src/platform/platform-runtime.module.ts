@@ -1,6 +1,8 @@
 import { type DynamicModule, Global, Module } from '@nestjs/common';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { Pool } from 'pg';
+import { AccountExtensionsRegistry } from '../auth/account-extensions.js';
+import { AccountExtensionsModule } from '../auth/account-extensions.module.js';
 import {
   DRIZZLE_DB,
   DRIZZLE_POOL,
@@ -14,6 +16,10 @@ import {
 import type { RemoteRuntimeOptions } from './PlatformApplicationRuntime.js';
 import { PlatformApplicationRuntime } from './PlatformApplicationRuntime.js';
 import { PlatformGameServices } from './PlatformGameServices.js';
+import {
+  PLATFORM_PLAYER_AUTHORIZATION_EXTENSION_ID,
+  PlatformPlayerAuthorizationLifecycle,
+} from './PlatformPlayerAuthorizationLifecycle.js';
 import { PlatformPlayerConnections } from './PlatformPlayerConnections.js';
 import { PlatformReleaseAdministration } from './PlatformReleaseAdministration.js';
 import {
@@ -67,9 +73,31 @@ export class PlatformRuntimeModule {
             },
           ]
         : [];
+    const playerAuthorizationLifecycleProviders =
+      options.playerConnections || options.createPlayerConnections
+        ? [
+            {
+              provide: PlatformPlayerAuthorizationLifecycle,
+              inject: [PlatformPlayerConnections, AccountExtensionsRegistry],
+              useFactory: (
+                connections: PlatformPlayerConnections,
+                extensions: AccountExtensionsRegistry,
+              ) => {
+                const lifecycle = new PlatformPlayerAuthorizationLifecycle(
+                  connections,
+                );
+                extensions.register(
+                  PLATFORM_PLAYER_AUTHORIZATION_EXTENSION_ID,
+                  lifecycle.extensions(),
+                );
+                return lifecycle;
+              },
+            },
+          ]
+        : [];
     return {
       module: PlatformRuntimeModule,
-      imports: [DrizzleModule],
+      imports: [DrizzleModule, AccountExtensionsModule],
       providers: [
         {
           provide: PLATFORM_CONFIGURATION,
@@ -109,6 +137,7 @@ export class PlatformRuntimeModule {
             new PlatformReleaseAdministration(platform),
         },
         ...optionalProviders,
+        ...playerAuthorizationLifecycleProviders,
         {
           provide: GameCapabilityService,
           inject: [PlatformGameServices],
@@ -121,6 +150,9 @@ export class PlatformRuntimeModule {
         PlatformReleaseAdministration,
         ...(options.playerConnections || options.createPlayerConnections
           ? [PlatformPlayerConnections]
+          : []),
+        ...(options.playerConnections || options.createPlayerConnections
+          ? [PlatformPlayerAuthorizationLifecycle]
           : []),
         GameAccessService,
         GameCapabilityService,

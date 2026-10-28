@@ -235,6 +235,40 @@ describe('SessionGateway', () => {
     expect(request?.accessContext).not.toHaveProperty('roles');
   });
 
+  it('keeps the trusted login session binding out of the game access context', async () => {
+    const backend = backendWith();
+    const getPlayerView = vi.fn(backend.getPlayerView);
+    const resolved: ResolvedIdentity = {
+      principalId: 'alice',
+      authEpoch: 'account-epoch-1',
+      active: true,
+      authSessionId: 'auth-session-1',
+    };
+    const authorize = vi.fn(async () => true);
+    const gateway = new SessionGateway(
+      options(activeStart, {
+        resolveIdentity: vi.fn(async () => resolved),
+        authorize,
+        resolveBackend: vi.fn(() => ({ ...backend, getPlayerView })),
+      }),
+    );
+
+    await gateway.view(identity, route.sessionId);
+
+    expect(authorize).toHaveBeenCalledWith(
+      expect.objectContaining({ authSessionId: 'auth-session-1' }),
+      admission,
+      'view',
+    );
+    expect(getPlayerView).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accessContext: expect.not.objectContaining({
+          authSessionId: 'auth-session-1',
+        }),
+      }),
+    );
+  });
+
   it('passes explicitly registered game scopes without allowing platform privilege escalation', async () => {
     const backend = backendWith();
     const getPlayerView = vi.fn(backend.getPlayerView);

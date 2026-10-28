@@ -30,6 +30,7 @@ describe('PlatformAdministrationController', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
     );
 
     await controller.listUsers(undefined, '25', '1');
@@ -55,5 +56,42 @@ describe('PlatformAdministrationController', () => {
       pageNum: 1,
       sort: '',
     });
+  });
+
+  it('revokes game authorization after an administrator changes a role', async () => {
+    vi.spyOn(UserRepository.prototype, 'findById').mockResolvedValue(USER);
+    const update = vi
+      .spyOn(UserRepository.prototype, 'update')
+      .mockResolvedValue({ ...USER, role: ERole.TESTER });
+    const values = vi.fn().mockResolvedValue(undefined);
+    const onAuthorizationChanged = vi.fn().mockResolvedValue(undefined);
+    const registry = {
+      get: vi.fn(() => ({ onAuthorizationChanged })),
+    };
+    const controller = new PlatformAdministrationController(
+      { insert: vi.fn(() => ({ values })) } as never,
+      {} as never,
+      {} as never,
+      registry as never,
+    );
+
+    await controller.setUserRole(
+      'user-1',
+      { role: ERole.TESTER },
+      {
+        user: {
+          sub: 'admin-1',
+          email: 'admin@example.test',
+          role: ERole.SUPERADMIN,
+        },
+      },
+    );
+
+    expect(update).toHaveBeenCalledWith(
+      'user-1',
+      { role: ERole.TESTER },
+      { excludeSuperadmin: false },
+    );
+    expect(onAuthorizationChanged).toHaveBeenCalledWith({ userId: 'user-1' });
   });
 });

@@ -23,6 +23,7 @@ export * from './platform/PlatformAccountProjection.js';
 export * from './platform/PlatformApplicationRuntime.js';
 export * from './platform/PlatformGameServices.js';
 export * from './platform/PlatformIdentity.js';
+export * from './platform/PlatformPlayerAuthorizationLifecycle.js';
 export * from './platform/PlatformPlayerConnections.js';
 export * from './platform/PlatformReleaseAdministration.js';
 export * from './platform/PlatformReleaseController.js';

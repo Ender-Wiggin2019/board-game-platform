@@ -38,7 +38,9 @@ export class PlatformAccountIdentity {
     return (await this.resolveCurrent(reference)).identity;
   }
 
-  async resolveCurrent(reference: PlatformIdentityReference) {
+  async resolveCurrent(
+    reference: PlatformIdentityReference,
+  ): Promise<{ account: PlatformIdentityAccount; identity: ResolvedIdentity }> {
     const account = await this.account(reference.principalId);
     if (
       !account ||
@@ -52,16 +54,22 @@ export class PlatformAccountIdentity {
       throw contractError('UNAUTHENTICATED', 'platform.identity.inactive');
     return {
       account,
-      identity: {
-        principalId: account.id,
-        authEpoch: JSON.stringify([
-          reference.authSessionId,
-          account.sessionVersion,
-          account.permissionVersion,
-        ]),
-        active: true,
-      },
+      identity: this.stableIdentity(account, reference.authSessionId),
     };
+  }
+
+  /**
+   * Rechecks an AccessContext created by the platform gateway. The context
+   * deliberately omits the login session ID, so this validates only the
+   * account's current status and version epoch.
+   */
+  async resolveStableEpoch(
+    principalId: string,
+  ): Promise<{ account: PlatformIdentityAccount; identity: ResolvedIdentity }> {
+    const account = await this.account(principalId);
+    if (!account || account.accountStatus !== 'active')
+      throw contractError('UNAUTHENTICATED', 'platform.identity.inactive');
+    return { account, identity: this.stableIdentity(account) };
   }
 
   async resolvePublicAccount(
@@ -113,5 +121,21 @@ export class PlatformAccountIdentity {
       .where(eq(users.id, principalId))
       .limit(1);
     return account;
+  }
+
+  private stableIdentity(
+    account: PlatformIdentityAccount,
+    authSessionId?: string,
+  ): ResolvedIdentity {
+    return {
+      principalId: account.id,
+      authEpoch: JSON.stringify([
+        account.id,
+        account.sessionVersion,
+        account.permissionVersion,
+      ]),
+      active: true,
+      ...(authSessionId === undefined ? {} : { authSessionId }),
+    };
   }
 }

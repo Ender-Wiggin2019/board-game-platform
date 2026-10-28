@@ -277,6 +277,51 @@ describe('player credentials', () => {
     });
   });
 
+  it('lists one principal in stable bounded session pages without crossing accounts or platforms', async () => {
+    const store = new MemoryAuthorizationVersionStore();
+    const makeRoute = (sessionId: string) => ({ ...route, sessionId });
+    for (const sessionId of ['session-c', 'session-a', 'session-b']) {
+      const candidateRoute = makeRoute(sessionId);
+      await store.advance({
+        ...authorization(1, { route: candidateRoute }),
+        sessionId,
+      });
+    }
+    await store.advance({
+      ...authorization(1, { route: makeRoute('other-account') }),
+      sessionId: 'other-account',
+      principalId: 'other-player',
+    });
+    await store.advance({
+      ...authorization(1, { route: makeRoute('other-platform') }),
+      sessionId: 'other-platform',
+      platformId: 'other-platform',
+      authenticatedPlatformId: 'other-platform',
+    });
+
+    await expect(
+      store.listForPrincipal?.({
+        platformId,
+        principalId,
+        limit: 2,
+      }),
+    ).resolves.toMatchObject([
+      { sessionId: 'session-a' },
+      { sessionId: 'session-b' },
+    ]);
+    await expect(
+      store.listForPrincipal?.({
+        platformId,
+        principalId,
+        afterSessionId: 'session-b',
+        limit: 2,
+      }),
+    ).resolves.toMatchObject([{ sessionId: 'session-c' }]);
+    await expect(
+      store.listForPrincipal?.({ platformId, principalId, limit: 101 }),
+    ).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' });
+  });
+
   it('synchronizes authorization revisions over the authenticated internal HTTP channel', async () => {
     const serviceToken = 'authorization-service-token-long-enough-for-tests';
     const gameStore = new MemoryAuthorizationVersionStore({ now: () => now });

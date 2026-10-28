@@ -25,6 +25,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { currentAuditRequestId } from '@/auth/account-audit-request.js';
+import { AccountExtensionsRegistry } from '@/auth/account-extensions.js';
 import { Capabilities } from '@/auth/capabilities.decorator.js';
 import type { IJwtPayload } from '@/auth/jwt-auth.guard.js';
 import { PasswordRecoveryService } from '@/auth/password-recovery.service.js';
@@ -53,6 +54,8 @@ export class PlatformAdministrationController {
     private readonly inviteCodes: InviteCodeService,
     @Inject(PasswordRecoveryService)
     private readonly passwordRecovery: PasswordRecoveryService,
+    @Inject(AccountExtensionsRegistry)
+    private readonly extensions: AccountExtensionsRegistry,
   ) {
     this.users = new UserRepository(db);
     this.db = db;
@@ -140,6 +143,9 @@ export class PlatformAdministrationController {
       subjectUserId: updated.id,
       eventKind: 'admin_role_changed',
       context: { from: target.role, to: body.role },
+    });
+    await this.extensions.get().onAuthorizationChanged?.({
+      userId: updated.id,
     });
     return toPlatformAdminUserSummary(updated);
   }

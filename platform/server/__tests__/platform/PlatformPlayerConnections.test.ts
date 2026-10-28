@@ -103,6 +103,29 @@ function commandRequest(inputRoute: SessionRoute = route) {
   };
 }
 
+function authorizationInput(
+  inputRoute: SessionRoute,
+  options: {
+    readonly principalId?: string;
+    readonly platformId?: string;
+    readonly seatId?: string;
+    readonly scopes?: readonly string[];
+  } = {},
+): AuthorizationVersionAdvanceInput {
+  const platformId = options.platformId ?? 'platform-1';
+  return {
+    platformId,
+    sessionId: inputRoute.sessionId,
+    principalId: options.principalId ?? 'player-1',
+    authenticatedPlatformId: platformId,
+    route: inputRoute,
+    ...(options.seatId === undefined ? {} : { seatId: options.seatId }),
+    scopes: options.scopes ?? ['session:view', 'session:command'],
+    authEpoch: 'epoch-1',
+    authorizationRevision: 1,
+  };
+}
+
 const running: HttpPlayerTransport[] = [];
 afterEach(async () => {
   await Promise.all(running.splice(0).map((transport) => transport.close()));
@@ -384,5 +407,137 @@ describe('PlatformPlayerConnections', () => {
       ),
     ).resolves.toBe(403);
     expect(gameBackend.submitCommand).toHaveBeenCalledTimes(1);
+  });
+
+  it('revokes participant and viewer records for one account without crossing account or platform boundaries', async () => {
+    const platformStore = new MemoryAuthorizationVersionStore({
+      now: () => 10,
+    });
+    const gameStore = new MemoryAuthorizationVersionStore({ now: () => 10 });
+    const viewerRoute = { ...route, sessionId: 'player-session-2' };
+    const otherAccountRoute = { ...route, sessionId: 'player-session-3' };
+    const otherPlatformRoute = { ...route, sessionId: 'player-session-4' };
+    const sync = {
+      advance: (input: AuthorizationVersionAdvanceInput) =>
+        gameStore.advance(input),
+      revoke: (input: Parameters<typeof gameStore.revoke>[0]) =>
+        gameStore.revoke(input),
+    };
+    await platformStore.advance(
+      authorizationInput(route, { seatId: 'seat-1' }),
+    );
+    await platformStore.advance(
+      authorizationInput(viewerRoute, {
+        seatId: undefined,
+        scopes: ['session:view', 'session:spectate'],
+      }),
+    );
+    await platformStore.advance(
+      authorizationInput(otherAccountRoute, { principalId: 'other-player' }),
+    );
+    await platformStore.advance(
+      authorizationInput(otherPlatformRoute, { platformId: 'other-platform' }),
+    );
+    await gameStore.advance(authorizationInput(route, { seatId: 'seat-1' }));
+    await gameStore.advance(
+      authorizationInput(viewerRoute, {
+        seatId: undefined,
+        scopes: ['session:view', 'session:spectate'],
+      }),
+    );
+    const service = new PlatformPlayerConnections({
+      platformId: 'platform-1',
+      audience: 'player-game-service',
+      sessions: sessions(),
+      admission: { getAdmission: async () => admission },
+      identity,
+      authorizationStore: platformStore,
+      resolveAuthorizationSync: async () => sync,
+      resolvePlayerEndpoint: async () => 'https://game.example/player',
+      privateKey,
+      now: () => 10,
+    });
+
+    await expect(service.revokeAccount('player-1')).resolves.toMatchObject({
+      principalId: 'player-1',
+      revoked: [{ route }, { route: viewerRoute }],
+      failures: [],
+    });
+    const otherAccount = await platformStore.get({
+      platformId: 'platform-1',
+      sessionId: otherAccountRoute.sessionId,
+      principalId: 'other-player',
+    });
+    const otherPlatform = await platformStore.get({
+      platformId: 'other-platform',
+      sessionId: otherPlatformRoute.sessionId,
+      principalId: 'player-1',
+    });
+    expect(otherAccount?.revokedAt).toBeUndefined();
+    expect(otherPlatform?.revokedAt).toBeUndefined();
+    await expect(service.revokeAccount('player-1')).resolves.toMatchObject({
+      principalId: 'player-1',
+      revoked: [{ route }, { route: viewerRoute }],
+      failures: [],
+    });
+  });
+
+  it('continues account revocation after a remote failure and reports a retryable failure', async () => {
+    const platformStore = new MemoryAuthorizationVersionStore({
+      now: () => 10,
+    });
+    const gameStore = new MemoryAuthorizationVersionStore({ now: () => 10 });
+    const firstRoute = { ...route, sessionId: 'player-session-a' };
+    const failingRoute = { ...route, sessionId: 'player-session-b' };
+    await platformStore.advance(
+      authorizationInput(firstRoute, { seatId: 'seat-1' }),
+    );
+    await platformStore.advance(
+      authorizationInput(failingRoute, { seatId: 'seat-2' }),
+    );
+    await gameStore.advance(
+      authorizationInput(firstRoute, { seatId: 'seat-1' }),
+    );
+    await gameStore.advance(
+      authorizationInput(failingRoute, { seatId: 'seat-2' }),
+    );
+    let failRemote = true;
+    const service = new PlatformPlayerConnections({
+      platformId: 'platform-1',
+      audience: 'player-game-service',
+      sessions: sessions(),
+      admission: { getAdmission: async () => admission },
+      identity,
+      authorizationStore: platformStore,
+      resolveAuthorizationSync: async (candidateRoute) => ({
+        advance: (input: AuthorizationVersionAdvanceInput) =>
+          gameStore.advance(input),
+        revoke: (input: Parameters<typeof gameStore.revoke>[0]) =>
+          candidateRoute.sessionId === failingRoute.sessionId && failRemote
+            ? Promise.reject(
+                new AuthorizationTransportError('NETWORK', 'offline', true),
+              )
+            : gameStore.revoke(input),
+      }),
+      resolvePlayerEndpoint: async () => 'https://game.example/player',
+      privateKey,
+      now: () => 10,
+    });
+
+    await expect(service.revokeAccount('player-1')).resolves.toMatchObject({
+      revoked: [{ route: firstRoute }],
+      failures: [
+        {
+          sessionId: failingRoute.sessionId,
+          code: 'NOT_READY',
+          retryable: true,
+        },
+      ],
+    });
+    failRemote = false;
+    await expect(service.revokeAccount('player-1')).resolves.toMatchObject({
+      revoked: [{ route: firstRoute }, { route: failingRoute }],
+      failures: [],
+    });
   });
 });

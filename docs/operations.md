@@ -92,6 +92,20 @@ platform PID. A file rename alone does not replace the token held by an
 already-created backend adapter for the same binding; use the existing binding
 reload/readiness path for that rotation.
 
+Player credentials use a stable account epoch containing the account ID,
+session version and permission version. Concurrent logins therefore share the
+same authorization revision for the same session, seat and scopes. The login
+session ID stays inside the platform identity adapter and is checked before
+issuing a credential; it is never copied into a game access context.
+
+Account logout, session revocation and security changes revoke the account's
+stored game authorizations across participant and spectator sessions. Revocation
+attempts every binding even if one is unavailable and reports failed entries
+for retry. Until a remote binding receives that update, the existing short
+credential expiry remains the upper bound; an unavailable binding does not
+extend a credential. Other active logins can request a fresh credential after
+their account and login session are validated again.
+
 ## PostgreSQL verification
 
 Run the isolated framework gate before a release:
