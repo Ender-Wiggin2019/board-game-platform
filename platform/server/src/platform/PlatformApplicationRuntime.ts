@@ -430,6 +430,10 @@ export class PlatformApplicationRuntime {
   private readonly remoteBindingEndpoints = new Map<string, string>();
   /** Registry revision last probed successfully by the live adapter. */
   private readonly remoteBindingLiveRevisions = new Map<string, number>();
+  /** Prevents an older asynchronous channel projection from publishing late. */
+  private readonly remoteProjectionGenerations = new Map<string, number>();
+  private readonly remoteProjectionRecoveryPending = new Set<string>();
+  private readonly remoteProjectionRecoveryHooks = new Set<string>();
   private readonly releaseRegistryStore?: ReleaseRegistryStore;
   private readonly remoteRuntime?: RemoteRuntimeOptions;
   private remoteSettlementReleaseHook?: RemoteSettlementReleaseHook;
@@ -1245,7 +1249,10 @@ export class PlatformApplicationRuntime {
       },
     };
     try {
-      if (!this.games.has(description.gameId))
+      if (
+        options.persistRegistry !== false &&
+        !this.games.has(description.gameId)
+      )
         this.games.set(description.gameId, installed);
       this.releaseGames.set(releaseKey, installed);
       if (persistedBinding)
@@ -1395,7 +1402,11 @@ export class PlatformApplicationRuntime {
     if (binding.status !== 'ready')
       throw contractError('NOT_READY', 'platform.remote.binding_unavailable');
     await this.ensureRemoteBindingLoaded(binding, { requireLive: true });
-    return this.releaseRegistry.compareAndSwapChannel(input);
+    const channel = await this.releaseRegistry.compareAndSwapChannel(input);
+    await this.syncRemoteGameProjection([input.gameId], {
+      deferInfrastructureErrors: true,
+    });
+    return channel;
   }
 
   /** Resolves the durable channel before a new room or direct session starts. */
@@ -1474,10 +1485,162 @@ export class PlatformApplicationRuntime {
       this.options.platformId,
     );
     const installed: InstalledRemoteGame[] = [];
+    const gameIds = new Set<string>();
     for (const binding of bindings) {
       installed.push(await this.ensureRemoteBindingLoaded(binding));
+      gameIds.add(binding.gameId);
     }
+    await this.syncRemoteGameProjection([...gameIds]);
     return installed;
+  }
+
+  /**
+   * Selects the current projection from the durable stable channel only.
+   * Retained releases remain available through releaseGame() and exact routes,
+   * but never become current merely because they were restored first.
+   */
+  private async syncRemoteGameProjection(
+    gameIds: readonly string[],
+    options: {
+      readonly deferInfrastructureErrors?: boolean;
+      readonly scheduleRecovery?: boolean;
+    } = {},
+  ): Promise<boolean> {
+    if (
+      !this.releaseRegistry ||
+      !this.releaseRegistryStore ||
+      !this.options.platformId
+    )
+      return true;
+    const requestedGameIds = new Set(gameIds);
+    if (requestedGameIds.size === 0) return true;
+    const deferInfrastructureErrors =
+      options.deferInfrastructureErrors === true;
+    const scheduleRecovery =
+      options.scheduleRecovery === true || deferInfrastructureErrors;
+    const generations = new Map<string, number>();
+    for (const gameId of requestedGameIds) {
+      const generation =
+        (this.remoteProjectionGenerations.get(gameId) ?? 0) + 1;
+      this.remoteProjectionGenerations.set(gameId, generation);
+      generations.set(gameId, generation);
+    }
+    const isCurrent = (gameId: string): boolean =>
+      this.remoteProjectionGenerations.get(gameId) === generations.get(gameId);
+    const failInfrastructure = (gameId: string): void => {
+      if (!isCurrent(gameId)) return;
+      this.clearRemoteGameProjection(gameId, generations.get(gameId));
+      if (scheduleRecovery) this.scheduleRemoteProjectionRecovery(gameId);
+    };
+
+    let channels: readonly ChannelRecord[];
+    try {
+      channels = await this.releaseRegistry.listChannels(
+        this.options.platformId,
+      );
+    } catch (error) {
+      for (const gameId of requestedGameIds) failInfrastructure(gameId);
+      if (deferInfrastructureErrors) return false;
+      throw error;
+    }
+    const selected = new Map<string, ChannelRecord>();
+    const ambiguous = new Set<string>();
+    for (const channel of channels) {
+      if (channel.channel !== 'stable' || !requestedGameIds.has(channel.gameId))
+        continue;
+      const previous = selected.get(channel.gameId);
+      if (
+        previous &&
+        (previous.releaseId !== channel.releaseId ||
+          previous.targetBackendBindingId !== channel.targetBackendBindingId ||
+          previous.storageBindingId !== channel.storageBindingId ||
+          previous.ownershipEpoch !== channel.ownershipEpoch)
+      )
+        ambiguous.add(channel.gameId);
+      selected.set(channel.gameId, channel);
+    }
+
+    let deferredFailure = false;
+    for (const gameId of requestedGameIds) {
+      if (!isCurrent(gameId)) continue;
+      if (ambiguous.has(gameId)) {
+        this.clearRemoteGameProjection(gameId, generations.get(gameId));
+        this.remoteProjectionRecoveryPending.delete(gameId);
+        continue;
+      }
+      const channel = selected.get(gameId);
+      if (!channel) {
+        this.clearRemoteGameProjection(gameId, generations.get(gameId));
+        this.remoteProjectionRecoveryPending.delete(gameId);
+        continue;
+      }
+      const installed = this.releaseGames.get(
+        this.releaseKey(channel.gameId, channel.releaseId),
+      );
+      if (
+        !installed ||
+        'host' in installed ||
+        installed.backendBindingId !== channel.targetBackendBindingId ||
+        installed.storageBindingId !== channel.storageBindingId ||
+        installed.ownershipEpoch !== channel.ownershipEpoch
+      ) {
+        this.clearRemoteGameProjection(gameId, generations.get(gameId));
+        this.remoteProjectionRecoveryPending.delete(gameId);
+        continue;
+      }
+      let binding: ReleaseBindingRecord | null;
+      try {
+        binding = await this.releaseRegistryStore.getBinding(
+          this.options.platformId,
+          channel.targetBackendBindingId,
+        );
+      } catch (error) {
+        failInfrastructure(gameId);
+        if (deferInfrastructureErrors) {
+          deferredFailure = true;
+          continue;
+        }
+        throw error;
+      }
+      if (!isCurrent(gameId)) continue;
+      if (
+        !binding ||
+        binding.status !== 'ready' ||
+        binding.gameId !== channel.gameId ||
+        binding.releaseId !== channel.releaseId ||
+        binding.storageBindingId !== channel.storageBindingId ||
+        binding.ownershipEpoch !== channel.ownershipEpoch
+      ) {
+        this.clearRemoteGameProjection(gameId, generations.get(gameId));
+        this.remoteProjectionRecoveryPending.delete(gameId);
+        continue;
+      }
+      this.games.set(gameId, installed);
+      this.remoteProjectionRecoveryPending.delete(gameId);
+    }
+    return !deferredFailure;
+  }
+
+  private clearRemoteGameProjection(gameId: string, generation?: number): void {
+    if (
+      generation !== undefined &&
+      this.remoteProjectionGenerations.get(gameId) !== generation
+    )
+      return;
+    const current = this.games.get(gameId);
+    if (current && !('host' in current)) this.games.delete(gameId);
+  }
+
+  private scheduleRemoteProjectionRecovery(gameId: string): void {
+    this.remoteProjectionRecoveryPending.add(gameId);
+    if (this.remoteProjectionRecoveryHooks.has(gameId)) return;
+    this.remoteProjectionRecoveryHooks.add(gameId);
+    this.registerRecoveryHook(`remote-projection:${gameId}`, async () => {
+      if (!this.remoteProjectionRecoveryPending.has(gameId)) return;
+      await this.syncRemoteGameProjection([gameId], {
+        scheduleRecovery: true,
+      });
+    });
   }
 
   private async ensureRemoteBindingLoaded(
@@ -1624,7 +1787,6 @@ export class PlatformApplicationRuntime {
     if (options.requireLive)
       this.remoteBindingLiveRevisions.set(key, binding.revision);
     this.updateRemoteBindingStatus(binding, release.service.modes);
-    if (binding.status === 'ready') this.games.set(binding.gameId, installed);
     return installed;
   }
 
