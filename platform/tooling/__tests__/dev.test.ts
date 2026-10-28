@@ -38,7 +38,10 @@ describe('bgp dev', () => {
         exports: { '.': './dist/index.js' },
       }),
     );
-    await writeFile(join(server, 'dist/index.js'), developmentServerSource());
+    await writeFile(
+      join(server, 'dist/index.js'),
+      developmentServerSource().replaceAll('dev-cli', 'dev-runtime'),
+    );
     await writeFile(
       join(root, 'game.json'),
       JSON.stringify({
@@ -60,15 +63,15 @@ describe('bgp dev', () => {
     expect(JSON.parse(captured.value())).toMatchObject({
       started: true,
       mode: 'development',
-      gameId: 'dev-cli',
-      releaseId: 'dev-cli-v1',
+      gameId: 'dev-runtime',
+      releaseId: 'dev-runtime-v1',
       accounts: expect.arrayContaining([
         expect.objectContaining({ principalId: 'player1', role: 'player' }),
       ]),
       description: {
         platformId: 'development',
-        gameId: 'dev-cli',
-        releaseId: 'dev-cli-v1',
+        gameId: 'dev-runtime',
+        releaseId: 'dev-runtime-v1',
       },
     });
     expect(await readFile(join(server, 'dist/index.js'), 'utf8')).not.toContain(
@@ -127,6 +130,120 @@ describe('bgp dev', () => {
     const loaded = await loadDevelopmentGame(root, root);
     expect(loaded.nativeClientAvailable).toBe(true);
   });
+
+  it('advertises optional daily and statistics services from the server definition', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bgp-dev-services-'));
+    roots.push(root);
+    const client = join(root, 'packages', 'ui');
+    const server = join(root, 'runtime', 'server');
+    await mkdir(join(client, 'dist'), { recursive: true });
+    await mkdir(join(server, 'dist'), { recursive: true });
+    await writeFile(
+      join(client, 'package.json'),
+      JSON.stringify({
+        name: '@board-games/dev-services-client',
+        exports: { '.': './dist/index.js' },
+      }),
+    );
+    await writeFile(
+      join(client, 'dist/index.js'),
+      'export const client = true;\n',
+    );
+    await writeFile(
+      join(server, 'package.json'),
+      JSON.stringify({
+        name: '@board-games/dev-services-server',
+        exports: { '.': './dist/index.js' },
+      }),
+    );
+    const dailyDescription = {
+      modeId: 'room',
+      playerCount: 1,
+      settingsSchema: {
+        name: 'dev-cli.daily.settings',
+        version: 1,
+        schema: { type: 'object', additionalProperties: true },
+      },
+      defaultSettings: {},
+      operations: [
+        'validateSettings',
+        'publicSettings',
+        'prepare',
+        'validateSetup',
+        'participants',
+        'score',
+      ],
+    };
+    const statisticsDescription = {
+      protocolVersion: 1,
+      operations: [
+        {
+          key: 'summary',
+          audience: 'self',
+          requestSchema: {
+            name: 'dev-cli.statistics.summary.request',
+            version: 1,
+            schema: { type: 'object', additionalProperties: true },
+          },
+          responseSchema: {
+            name: 'dev-cli.statistics.summary.response',
+            version: 1,
+            schema: { type: 'object', additionalProperties: true },
+          },
+        },
+      ],
+    };
+    const services = JSON.stringify({
+      dailyChallenge: { description: dailyDescription },
+      statistics: { description: statisticsDescription },
+    });
+    await writeFile(
+      join(server, 'dist/index.js'),
+      developmentServerSource(services).replaceAll('dev-cli', 'dev-services'),
+    );
+    await writeFile(
+      join(root, 'game.json'),
+      JSON.stringify({
+        schemaVersion: 1,
+        id: 'dev-services',
+        title: 'Development Services',
+        client: {
+          package: '@board-games/dev-services-client',
+          export: '.',
+        },
+        server: {
+          package: '@board-games/dev-services-server',
+          export: '.',
+        },
+        status: 'ready',
+      }),
+    );
+
+    const loaded = await loadDevelopmentGame(root, root);
+    expect(loaded.description.dailyChallenge).toEqual({
+      ...dailyDescription,
+      settingsSchema: {
+        ...dailyDescription.settingsSchema,
+        name: 'dev-services.daily.settings',
+      },
+    });
+    expect(loaded.description.statistics).toEqual({
+      ...statisticsDescription,
+      operations: [
+        {
+          ...statisticsDescription.operations[0],
+          requestSchema: {
+            ...statisticsDescription.operations[0].requestSchema,
+            name: 'dev-services.statistics.summary.request',
+          },
+          responseSchema: {
+            ...statisticsDescription.operations[0].responseSchema,
+            name: 'dev-services.statistics.summary.response',
+          },
+        },
+      ],
+    });
+  });
 });
 
 function captureOutput() {
@@ -144,7 +261,7 @@ function captureOutput() {
   };
 }
 
-function developmentServerSource(): string {
+function developmentServerSource(services = '{}'): string {
   return `export const server = {
   manifest: { gameId: 'dev-cli', releaseId: 'dev-cli-v1' },
   module: {
@@ -174,7 +291,7 @@ function developmentServerSource(): string {
     result: (state) => ({ kind: 'solo', participantIds: [state.playerId], outcome: 'completed', score: state.count }),
     completion: () => ({ finished: false }),
   },
-  services: {},
+  services: ${services},
 };
 `;
 }

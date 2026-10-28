@@ -8,6 +8,7 @@ import {
   assertAccessContext,
   assertControlSessionRequest,
   assertCreateSessionRequest,
+  assertDeveloperConsoleCatalogRequest,
   assertGameResult,
   assertGetEventsRequest,
   assertJsonPayloadSize,
@@ -16,6 +17,7 @@ import {
   assertProtocolRequest,
   assertSessionRoute,
   assertSubmitCommandRequest,
+  assertSubmitDeveloperCommandRequest,
   assertSubmitSystemCommandRequest,
   assertTurnState,
   type BackendDescription,
@@ -31,6 +33,8 @@ import {
   controlsParticipant,
   DEFAULT_JSON_LIMITS,
   type DescribeRequest,
+  type DeveloperConsoleCatalogRequest,
+  type DeveloperConsoleCatalogResponse,
   type EventSource,
   type GetEventsRequest,
   type GetEventsResponse,
@@ -58,6 +62,8 @@ import {
   type SessionSummary,
   type SubmitCommandRequest,
   type SubmitCommandResponse,
+  type SubmitDeveloperCommandRequest,
+  type SubmitDeveloperCommandResponse,
   type SubmitSystemCommandRequest,
   type SubmitSystemCommandResponse,
   type TurnState,
@@ -105,6 +111,7 @@ export type HostOperation =
   | 'activate'
   | 'status'
   | 'command'
+  | 'developer-console'
   | 'system'
   | 'query'
   | 'view'
@@ -173,6 +180,7 @@ type AutomationExecutionOptions = {
 type CommandExecutionOptions =
   | { readonly kind: 'player' }
   | { readonly kind: 'system' }
+  | { readonly kind: 'developer' }
   | AutomationExecutionOptions;
 
 export interface GameHostOptions {
@@ -856,6 +864,8 @@ export class GameHost implements BackendPort {
         traceId: options.decision.decisionId,
       };
     if (options.kind === 'system') return { kind: 'system' };
+    if (options.kind === 'developer')
+      return { kind: 'system', traceId: commandTraceId(commandId) };
     return { kind: 'human', traceId: commandTraceId(commandId) };
   }
 
@@ -1218,10 +1228,73 @@ export class GameHost implements BackendPort {
     return this.executeCommand(request, { kind: 'system' });
   }
 
+  async getDeveloperConsole(
+    input: DeveloperConsoleCatalogRequest,
+  ): Promise<DeveloperConsoleCatalogResponse> {
+    assertDeveloperConsoleCatalogRequest(input);
+    const request = this.request(input);
+    return this.transaction(request, async (_tx, head) => {
+      await this.authorizeDeveloper(request);
+      this.assertActive(head);
+      const module = this.options.registry.resolve(head.route);
+      const plugin = module.developerConsole;
+      const mode = this.developerMode(module, head.route.modeId);
+      const catalog = plugin
+        ? plugin.commands.map((command) => ({
+            name: command.name,
+            label: command.label,
+            ...(command.description === undefined
+              ? {}
+              : { description: command.description }),
+            inputSchema: {
+              name: command.inputSchema.name,
+              version: command.inputSchema.version,
+              schema: copy(command.inputSchema.schema),
+              ...(command.inputSchema.maxBytes === undefined
+                ? {}
+                : { maxBytes: command.inputSchema.maxBytes }),
+            },
+          }))
+        : [];
+      assertJsonPayloadSize(
+        catalog,
+        DEFAULT_JSON_LIMITS.viewBytes,
+        'developerConsole.catalog',
+      );
+      return {
+        catalog,
+        enabled: Boolean(plugin && mode.enabled),
+        ...(plugin
+          ? mode.reason === undefined
+            ? {}
+            : { reason: mode.reason }
+          : { reason: 'host.developerConsole.unavailable' }),
+        revision: head.revision,
+      };
+    });
+  }
+
+  async submitDeveloperCommand(
+    input: SubmitDeveloperCommandRequest,
+  ): Promise<SubmitDeveloperCommandResponse> {
+    assertSubmitDeveloperCommandRequest(input);
+    const request = this.request(input);
+    return this.executeCommand(request, {
+      kind: 'developer',
+    }) as Promise<SubmitDeveloperCommandResponse>;
+  }
+
   private async executeCommand(
-    request: SubmitCommandRequest | SubmitSystemCommandRequest,
+    request:
+      | SubmitCommandRequest
+      | SubmitSystemCommandRequest
+      | SubmitDeveloperCommandRequest,
     options: CommandExecutionOptions,
-  ): Promise<SubmitCommandResponse | SubmitSystemCommandResponse> {
+  ): Promise<
+    | SubmitCommandResponse
+    | SubmitSystemCommandResponse
+    | SubmitDeveloperCommandResponse
+  > {
     const traceStartedAt = this.now();
     const inputHash =
       options.kind === 'automation'
@@ -1249,17 +1322,28 @@ export class GameHost implements BackendPort {
                     .deadlineId,
                   command: request.command,
                 }
-              : {
-                  kind: 'player',
-                  principalId: request.accessContext.principalId,
-                  ...(request.accessContext.seatId === undefined
-                    ? {}
-                    : { seatId: request.accessContext.seatId }),
-                  route: request.route,
-                  commandId: request.commandId,
-                  precondition: (request as SubmitCommandRequest).precondition,
-                  command: request.command,
-                },
+              : options.kind === 'developer'
+                ? {
+                    kind: 'developer',
+                    principalId: request.accessContext.principalId,
+                    route: request.route,
+                    commandId: request.commandId,
+                    expectedRevision: (request as SubmitDeveloperCommandRequest)
+                      .expectedRevision,
+                    command: request.command,
+                  }
+                : {
+                    kind: 'player',
+                    principalId: request.accessContext.principalId,
+                    ...(request.accessContext.seatId === undefined
+                      ? {}
+                      : { seatId: request.accessContext.seatId }),
+                    route: request.route,
+                    commandId: request.commandId,
+                    precondition: (request as SubmitCommandRequest)
+                      .precondition,
+                    command: request.command,
+                  },
           );
     return this.queue.run(request.route.sessionId, async () => {
       let preparation: ResourcePreparation | null = null;
@@ -1280,23 +1364,35 @@ export class GameHost implements BackendPort {
       }
       try {
         const execution = await this.transaction(request, async (tx, head) => {
-          const operation = options.kind === 'player' ? 'command' : 'system';
-          const scope =
-            options.kind === 'player' ? 'session:command' : 'session:system';
-          await this.authorize(request, operation, scope);
+          if (options.kind === 'player')
+            await this.authorize(request, 'command', 'session:command');
+          else if (options.kind === 'developer')
+            await this.authorizeDeveloper(request);
+          else await this.authorize(request, 'system', 'session:system');
           const actor =
             options.kind === 'automation'
               ? options.actor
               : options.kind === 'system'
                 ? this.systemActor(request.accessContext)
-                : this.actor(head, request.accessContext);
+                : options.kind === 'developer'
+                  ? {
+                      principalId: request.accessContext.principalId,
+                      kind: 'system' as const,
+                    }
+                  : this.actor(head, request.accessContext);
           const previous = await tx.getReceipt(request.commandId);
           if (previous) {
             this.assertReceipt(previous, inputHash, actor.principalId);
             if (options.kind === 'automation')
               await tx.deleteAutomationDecision(options.decision.decisionId);
             return {
-              response: { receipt: this.safeReceipt(previous, true) },
+              response:
+                options.kind === 'developer'
+                  ? {
+                      receipt: this.safeReceipt(previous, true),
+                      revision: head.revision,
+                    }
+                  : { receipt: this.safeReceipt(previous, true) },
               resourceOutcome: this.resourceOutcome(previous),
             };
           }
@@ -1306,6 +1402,9 @@ export class GameHost implements BackendPort {
             copy(head.encodedState),
             head.schemaVersion,
           );
+          let developerCommand:
+            | NonNullable<RuntimeModule['developerConsole']>['commands'][number]
+            | undefined;
           let systemSchedule: HostSystemSchedule | undefined;
           if (options.kind === 'system') {
             const systemRequest = request as SubmitSystemCommandRequest;
@@ -1349,6 +1448,34 @@ export class GameHost implements BackendPort {
               await tx.deleteAutomationDecision(options.decision.decisionId);
               throw error;
             }
+          } else if (options.kind === 'developer') {
+            const developerRequest = request as SubmitDeveloperCommandRequest;
+            if (developerRequest.expectedRevision !== head.revision)
+              throw contractError('STALE_REVISION', 'host.revision.stale');
+            const plugin = module.developerConsole;
+            if (!plugin)
+              throw contractError(
+                'NOT_READY',
+                'host.developerConsole.unavailable',
+              );
+            const mode = this.developerMode(module, head.route.modeId);
+            if (!mode.enabled)
+              throw contractError(
+                'FORBIDDEN',
+                mode.reason ?? 'host.developerConsole.disabled',
+              );
+            developerCommand = plugin.commands.find(
+              (candidate) => candidate.name === developerRequest.command.name,
+            );
+            if (!developerCommand)
+              throw contractError(
+                'NOT_FOUND',
+                'host.developerConsole.command_unavailable',
+              );
+            assertMatchesSchema(
+              developerRequest.command.input,
+              developerCommand.inputSchema,
+            );
           } else {
             const playerRequest = request as SubmitCommandRequest;
             assertMatchesSchema(playerRequest.command, module.schemas.command);
@@ -1479,6 +1606,22 @@ export class GameHost implements BackendPort {
               copy(automationRequest.command),
               { actor, logicalTime },
             );
+          } else if (options.kind === 'developer') {
+            if (!developerCommand)
+              throw contractError(
+                'NOT_READY',
+                'host.developerConsole.unavailable',
+              );
+            const developerRequest = request as SubmitDeveloperCommandRequest;
+            transition = developerCommand.execute(
+              state,
+              copy(developerRequest.command),
+              {
+                issuerPrincipalId: actor.principalId,
+                logicalTime,
+                modeId: head.route.modeId,
+              },
+            );
           } else {
             const playerRequest = request as SubmitCommandRequest;
             transition = module.rules.execute(
@@ -1543,7 +1686,13 @@ export class GameHost implements BackendPort {
               );
             }
             return {
-              response: { receipt: this.safeReceipt(receipt) },
+              response:
+                options.kind === 'developer'
+                  ? {
+                      receipt: this.safeReceipt(receipt),
+                      revision: head.revision,
+                    }
+                  : { receipt: this.safeReceipt(receipt) },
               resourceOutcome: 'rejected' as const,
             };
           }
@@ -1752,10 +1901,16 @@ export class GameHost implements BackendPort {
           await tx.putReceipt(receipt);
           await tx.clearAutomationDecisions();
           return {
-            response: {
-              receipt: this.safeReceipt(receipt),
-              ...(view ? { view } : {}),
-            },
+            response:
+              options.kind === 'developer'
+                ? {
+                    receipt: this.safeReceipt(receipt),
+                    revision: next.revision,
+                  }
+                : {
+                    receipt: this.safeReceipt(receipt),
+                    ...(view ? { view } : {}),
+                  },
             resourceOutcome: 'accepted' as const,
           };
         });
@@ -1765,7 +1920,11 @@ export class GameHost implements BackendPort {
       } catch (error) {
         throw this.mapResourceError(error);
       }
-    }) as Promise<SubmitCommandResponse | SubmitSystemCommandResponse>;
+    }) as Promise<
+      | SubmitCommandResponse
+      | SubmitSystemCommandResponse
+      | SubmitDeveloperCommandResponse
+    >;
   }
 
   async getPlayerView(
@@ -2356,6 +2515,51 @@ export class GameHost implements BackendPort {
     assertSessionRoute(input.route);
     assertJsonPayloadSize(input, DEFAULT_JSON_LIMITS.setupBytes);
     return copy(input);
+  }
+
+  private async authorizeDeveloper(request: {
+    readonly accessContext: AccessContext;
+    readonly route: SessionRoute;
+  }): Promise<void> {
+    if (
+      !request.accessContext.scopes.includes('session:admin') ||
+      !request.accessContext.scopes.includes('session:developer')
+    )
+      throw contractError('FORBIDDEN', 'host.developerConsole.scope_denied');
+    await this.authorize(request, 'developer-console', [
+      'session:admin',
+      'session:developer',
+    ]);
+  }
+
+  private developerMode(
+    module: RuntimeModule,
+    modeId: string,
+  ): { readonly enabled: boolean; readonly reason?: string } {
+    const eligibility = module.developerConsole?.isModeEnabled?.(modeId);
+    if (eligibility === undefined || eligibility === true)
+      return { enabled: true };
+    if (eligibility === false)
+      return {
+        enabled: false,
+        reason: 'host.developerConsole.disabled',
+      };
+    if (
+      !eligibility ||
+      typeof eligibility !== 'object' ||
+      typeof eligibility.enabled !== 'boolean' ||
+      (eligibility.reason !== undefined &&
+        (typeof eligibility.reason !== 'string' ||
+          eligibility.reason.length === 0 ||
+          eligibility.reason.length > 256))
+    )
+      throw contractError('INTERNAL', 'host.developerConsole.policy_invalid');
+    return {
+      enabled: eligibility.enabled,
+      ...(eligibility.reason === undefined
+        ? {}
+        : { reason: eligibility.reason }),
+    };
   }
 
   private async authorize(

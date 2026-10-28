@@ -471,7 +471,7 @@ async function clickCounterButton(
 async function verifyCounterLifecycle(page: PlaywrightPage): Promise<void> {
   if ((await page.locator('[data-counter-status]').count()) === 0) return;
   const target = await page.evaluate<number>(
-    "Number(document.querySelector('#game-root')?.textContent?.match(/Count \\d+ \/ (\\d+)/)?.[1] || 0)",
+    "Number(document.querySelector('#game-root')?.textContent?.match(/Count \\d+ \\/ (\\d+)/)?.[1] || 0)",
   );
   if (!Number.isSafeInteger(target) || target < 2 || target > 10)
     throw new Error('Native counter client exposed an invalid target');

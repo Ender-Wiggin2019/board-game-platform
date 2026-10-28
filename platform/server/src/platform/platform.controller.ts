@@ -1,5 +1,6 @@
 import {
   contractError,
+  isJsonValue,
   type JsonValue,
   type PlatformRoom,
   type RoomSeatControllerInput,
@@ -31,6 +32,7 @@ import {
 import { Capabilities } from '@/auth/capabilities.decorator.js';
 import { RolesGuard } from '@/auth/roles.guard.js';
 import { PlatformApplicationRuntime } from './PlatformApplicationRuntime.js';
+import { PlatformDeveloperConsole } from './PlatformDeveloperConsole.js';
 import { PlatformErrorFilter } from './PlatformErrorFilter.js';
 import { PlatformGameServices } from './PlatformGameServices.js';
 import { PlatformReleaseAdministration } from './PlatformReleaseAdministration.js';
@@ -52,6 +54,7 @@ import {
 @Controller('platform')
 @UseFilters(PlatformErrorFilter)
 export class PlatformController {
+  private readonly developerConsole: PlatformDeveloperConsole;
   constructor(
     @Inject(PlatformApplicationRuntime)
     private readonly runtime: PlatformApplicationRuntime,
@@ -64,7 +67,36 @@ export class PlatformController {
     @Optional()
     @Inject(PLATFORM_CONFIGURATION)
     private readonly configuration?: PlatformPublicConfiguration,
-  ) {}
+  ) {
+    this.developerConsole = new PlatformDeveloperConsole(runtime);
+  }
+
+  @Get('sessions/:id/developer-console')
+  @Header('Cache-Control', 'no-store')
+  @UseGuards(RolesGuard)
+  @Capabilities(ECapability.ADMIN_ACCESS, ECapability.CONSOLE_USE)
+  describeDeveloperConsole(@Req() request: Request, @Param('id') id: string) {
+    return this.developerConsole.describe(reference(request), text(id));
+  }
+
+  @Post('sessions/:id/developer-console/commands')
+  @UseGuards(RolesGuard)
+  @Capabilities(ECapability.ADMIN_ACCESS, ECapability.CONSOLE_USE)
+  submitDeveloperCommand(
+    @Req() request: Request,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const value = input(body, ['commandId', 'expectedRevision', 'command']);
+    const command = input(value.command, ['name', 'input']);
+    if (!isJsonValue(command.input))
+      throw contractError('INVALID_REQUEST', 'platform.developer.input');
+    return this.developerConsole.submit(reference(request), text(id), {
+      commandId: text(value.commandId),
+      expectedRevision: revision(value.expectedRevision),
+      command: { name: text(command.name), input: command.input },
+    });
+  }
 
   private assertChatEnabled(): void {
     assertPlatformFeature(this.configuration, 'chat');

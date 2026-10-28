@@ -3,9 +3,12 @@ import {
   type AccessContext,
   type BackendPort,
   contractError,
+  type DeveloperConsoleCatalogRequest,
+  type DeveloperConsoleCatalogResponse,
   type GetStatusRequest,
   type ReadyResponse,
   type SessionRoute,
+  type SubmitDeveloperCommandRequest,
   type SubmitSystemCommandRequest,
 } from '@board-game/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -307,6 +310,85 @@ describe('EmbeddedBackendAdapter and RemoteBackendAdapter', () => {
     });
     expect(denied.status).toBe(403);
     expect(submitSystemCommand).toHaveBeenCalledTimes(1);
+  });
+
+  it('routes developer catalog and mutation operations with both operator scopes', async () => {
+    const getDeveloperConsole = vi.fn(
+      async (request: DeveloperConsoleCatalogRequest) =>
+        ({
+          catalog: [],
+          enabled: true,
+          revision: request.route.sessionId === route.sessionId ? 3 : 0,
+        }) satisfies DeveloperConsoleCatalogResponse,
+    );
+    const submitDeveloperCommand = vi.fn(
+      async (request: SubmitDeveloperCommandRequest) => ({
+        receipt: {
+          commandId: request.commandId,
+          sessionId: request.route.sessionId,
+          status: 'accepted' as const,
+          resultRetention: 'replayable' as const,
+          persistedRevision: request.expectedRevision + 1,
+          persistedAt: 2,
+        },
+        revision: request.expectedRevision + 1,
+      }),
+    );
+    const backend = backendWith({
+      getDeveloperConsole,
+      submitDeveloperCommand,
+    });
+    const accessContext: AccessContext = {
+      principalId: 'operator',
+      scopes: ['session:admin', 'session:developer'],
+      authEpoch: 'operator-1',
+    };
+    const catalogRequest: DeveloperConsoleCatalogRequest = {
+      protocolVersion: 1,
+      accessContext,
+      route,
+    };
+    const commandRequest: SubmitDeveloperCommandRequest = {
+      protocolVersion: 1,
+      accessContext,
+      route,
+      commandId: 'developer-command-1',
+      expectedRevision: 3,
+      command: { name: 'set-money', input: { playerId: 'p1', amount: 10 } },
+    };
+    const { baseUrl } = await startTransport(backend, {
+      allowedScopes: ['session:admin', 'session:developer'],
+    });
+    const remote = new RemoteBackendAdapter({
+      baseUrl,
+      serviceToken,
+      allowInsecureLocalhost: true,
+    });
+
+    await expect(remote.getDeveloperConsole(catalogRequest)).resolves.toEqual({
+      catalog: [],
+      enabled: true,
+      revision: 3,
+    });
+    await expect(
+      remote.submitDeveloperCommand(commandRequest),
+    ).resolves.toMatchObject({
+      receipt: { commandId: 'developer-command-1', status: 'accepted' },
+      revision: 4,
+    });
+    expect(getDeveloperConsole).toHaveBeenCalledWith(catalogRequest);
+    expect(submitDeveloperCommand).toHaveBeenCalledWith(commandRequest);
+
+    const denied = await postJson(baseUrl, 'getDeveloperConsole', {
+      protocolVersion: 1,
+      request: {
+        ...catalogRequest,
+        accessContext: { ...accessContext, scopes: ['session:admin'] },
+      },
+    });
+    expect(denied.status).toBe(403);
+    expect(getDeveloperConsole).toHaveBeenCalledTimes(1);
+    expect(submitDeveloperCommand).toHaveBeenCalledTimes(1);
   });
 
   it('uses the same validated clone boundary for embedded and HTTP-backed calls', async () => {

@@ -4,6 +4,7 @@ export * from './defineGameOptions.js';
 export * from './GameActionBar.js';
 export * from './GameClientBoundary.js';
 export * from './GameClientRegistration.js';
+export * from './GameDeveloperConsole.js';
 export * from './GameFrame.js';
 export * from './GameLayout.js';
 export * from './GamePlayerSummary.js';

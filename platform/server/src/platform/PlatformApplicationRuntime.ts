@@ -135,7 +135,8 @@ export type GameAccessPolicy = Pick<
   | 'diagnosticAccess'
   | 'startAccess'
   | 'systemAccess'
->;
+> &
+  Partial<Pick<PlatformIdentity, 'developerAccess'>>;
 
 export interface RemoteBindingRegistration extends ReleaseEndpointRefs {
   readonly deployment: ReleaseDeploymentKind;

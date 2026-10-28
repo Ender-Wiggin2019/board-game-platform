@@ -14,6 +14,7 @@ import {
   assertControlSessionRequest,
   assertCreateSessionRequest,
   assertDailyChallengeServiceRequest,
+  assertDeveloperConsoleCatalogRequest,
   assertGameStatisticsServiceRequest,
   assertGetEventsRequest,
   assertJsonPayloadSize,
@@ -21,6 +22,7 @@ import {
   assertQueryPayload,
   assertSessionRoute,
   assertSubmitCommandRequest,
+  assertSubmitDeveloperCommandRequest,
   assertSubmitSystemCommandRequest,
   type BackendDescription,
   type BackendPort,
@@ -34,6 +36,8 @@ import {
   type DailyChallengeServiceResponse,
   DEFAULT_JSON_LIMITS,
   type DescribeRequest,
+  type DeveloperConsoleCatalogRequest,
+  type DeveloperConsoleCatalogResponse,
   type ErrorEnvelope,
   GAME_STATISTICS_BACKEND_OPERATION,
   type GameStatisticsServiceRequest,
@@ -59,6 +63,8 @@ import {
   type SessionSummary,
   type SubmitCommandRequest,
   type SubmitCommandResponse,
+  type SubmitDeveloperCommandRequest,
+  type SubmitDeveloperCommandResponse,
   type SubmitSystemCommandRequest,
   type SubmitSystemCommandResponse,
   toErrorEnvelope,
@@ -72,6 +78,8 @@ export const HTTP_HOST_OPERATIONS = [
   'getStatus',
   'submitCommand',
   'submitSystemCommand',
+  'getDeveloperConsole',
+  'submitDeveloperCommand',
   'queryOptions',
   'getPlayerView',
   'getEvents',
@@ -324,6 +332,16 @@ function validateRequest(operation: BackendOperation, value: unknown): void {
     case 'submitSystemCommand':
       assertSubmitSystemCommandRequest(value as SubmitSystemCommandRequest);
       return;
+    case 'getDeveloperConsole':
+      assertDeveloperConsoleCatalogRequest(
+        value as DeveloperConsoleCatalogRequest,
+      );
+      return;
+    case 'submitDeveloperCommand':
+      assertSubmitDeveloperCommandRequest(
+        value as SubmitDeveloperCommandRequest,
+      );
+      return;
     case 'queryOptions':
       validateQueryRequest(value);
       return;
@@ -431,6 +449,18 @@ function dispatch(
       return backend.submitCommand(request as SubmitCommandRequest);
     case 'submitSystemCommand':
       return backend.submitSystemCommand(request as SubmitSystemCommandRequest);
+    case 'getDeveloperConsole':
+      if (!backend.getDeveloperConsole)
+        throw contractError('NOT_READY', 'host.developerConsole.unavailable');
+      return backend.getDeveloperConsole(
+        request as DeveloperConsoleCatalogRequest,
+      );
+    case 'submitDeveloperCommand':
+      if (!backend.submitDeveloperCommand)
+        throw contractError('NOT_READY', 'host.developerConsole.unavailable');
+      return backend.submitDeveloperCommand(
+        request as SubmitDeveloperCommandRequest,
+      );
     case 'queryOptions':
       return backend.queryOptions(request as QueryOptionsRequest);
     case 'getPlayerView':
@@ -538,6 +568,24 @@ abstract class BackendAdapterBase implements BackendPort {
   ): Promise<SubmitSystemCommandResponse> {
     return this.call<SubmitSystemCommandResponse>(
       'submitSystemCommand',
+      request,
+    );
+  }
+
+  public getDeveloperConsole(
+    request: DeveloperConsoleCatalogRequest,
+  ): Promise<DeveloperConsoleCatalogResponse> {
+    return this.call<DeveloperConsoleCatalogResponse>(
+      'getDeveloperConsole',
+      request,
+    );
+  }
+
+  public submitDeveloperCommand(
+    request: SubmitDeveloperCommandRequest,
+  ): Promise<SubmitDeveloperCommandResponse> {
+    return this.call<SubmitDeveloperCommandResponse>(
+      'submitDeveloperCommand',
       request,
     );
   }
@@ -903,6 +951,15 @@ function authorizeServiceRequest(
     !accessContext.scopes.includes('session:system')
   ) {
     throw contractError('FORBIDDEN', 'transport.system.scope.denied');
+  }
+  if (
+    (operation === 'getDeveloperConsole' ||
+      operation === 'submitDeveloperCommand') &&
+    (!accessContext ||
+      !accessContext.scopes.includes('session:admin') ||
+      !accessContext.scopes.includes('session:developer'))
+  ) {
+    throw contractError('FORBIDDEN', 'transport.developerConsole.scope.denied');
   }
   if (
     operation === GAME_STATISTICS_BACKEND_OPERATION &&

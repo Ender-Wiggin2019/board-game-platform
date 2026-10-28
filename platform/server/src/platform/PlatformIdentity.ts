@@ -514,6 +514,18 @@ export class PlatformIdentity {
     };
   }
 
+  /** Developer access is a separate operator capability, never a scheduler scope. */
+  async developerAccess(
+    reference: PlatformIdentityReference,
+    route: SessionRoute,
+  ): Promise<AccessContext> {
+    const access = await this.adminAccess(reference, route);
+    const { account } = await this.resolveCurrent(reference);
+    if (!can(resolveUserRole(account), ECapability.CONSOLE_USE))
+      throw contractError('FORBIDDEN', 'platform.developer.denied');
+    return { ...access, scopes: ['session:admin', 'session:developer'] };
+  }
+
   /** Rechecks the current account/session for operator jobs without a route. */
   async assertCurrentAdmin(
     reference: PlatformIdentityReference,
@@ -634,20 +646,32 @@ export class PlatformIdentity {
           context.authEpoch,
           current.identity.authEpoch,
         ) ||
-        !['control', 'automation-diagnostics'].includes(operation) ||
+        !['control', 'automation-diagnostics', 'developer-console'].includes(
+          operation,
+        ) ||
         (operation === 'control' &&
           !context.scopes.includes('session:control')) ||
+        (operation === 'developer-console' &&
+          !exactScopes(context.scopes, [
+            'session:admin',
+            'session:developer',
+          ])) ||
         start.state !== 'active'
       )
         throw contractError('FORBIDDEN', 'platform.admin.operation_denied');
       const role = resolveUserRole(current.account);
       if (
         !can(role, ECapability.ADMIN_ACCESS) ||
-        !can(role, ECapability.GAME_MODIFY_ANY)
+        !can(role, ECapability.GAME_MODIFY_ANY) ||
+        (operation === 'developer-console' &&
+          !can(role, ECapability.CONSOLE_USE))
       )
         throw contractError('FORBIDDEN', 'platform.admin.denied');
       return;
     }
+
+    if (operation === 'developer-console')
+      throw contractError('FORBIDDEN', 'platform.developer.denied');
 
     // Player AccessContexts intentionally omit authSessionId. Recheck the
     // stable account epoch before any game hook can allow the request.

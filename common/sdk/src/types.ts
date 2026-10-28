@@ -8,6 +8,7 @@ import type {
   TurnState,
   Viewer,
 } from '@board-game/contracts';
+import type { DeveloperConsolePlugin } from './developer-console.js';
 
 export type {
   Actor,
@@ -138,6 +139,8 @@ export interface GameModule<
   readonly modes: readonly ModeDefinition[];
   readonly schemas: GameSchemas;
   readonly rules: GameRules<S, Setup, Command, View, Event, Query, Answer>;
+  /** Optional operator-only command catalog and pure state transition hooks. */
+  readonly developerConsole?: DeveloperConsolePlugin<S, Event>;
   /** Current rule opportunities, independent of controller and transport concurrency. */
   readonly turn?: (
     state: Readonly<S>,

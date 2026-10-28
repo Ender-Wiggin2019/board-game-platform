@@ -1,4 +1,5 @@
 export * from './ClientSessionStore.js';
+export * from './DeveloperConsole.js';
 export * from './IframeSessionBridge.js';
 export * from './PlatformEventFeed.js';
 export * from './PlayerSessionTransport.js';

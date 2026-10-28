@@ -2,6 +2,12 @@ import type {
   DailyChallengeServiceRequest,
   DailyChallengeServiceResponse,
 } from './daily.js';
+import type {
+  DeveloperConsoleCatalogRequest,
+  DeveloperConsoleCatalogResponse,
+  SubmitDeveloperCommandRequest,
+  SubmitDeveloperCommandResponse,
+} from './developer-console.js';
 import type { ErrorEnvelope } from './errors.js';
 import type { JsonValue } from './json.js';
 import type { GameServiceDescription } from './runtime.js';
@@ -434,6 +440,14 @@ export interface BackendPort<
   readonly submitSystemCommand: (
     request: SubmitSystemCommandRequest,
   ) => Promise<SubmitSystemCommandResponse>;
+  /** Optional operator-only developer metadata operation. */
+  readonly getDeveloperConsole?: (
+    request: DeveloperConsoleCatalogRequest,
+  ) => Promise<DeveloperConsoleCatalogResponse>;
+  /** Optional operator-only developer mutation operation. */
+  readonly submitDeveloperCommand?: (
+    request: SubmitDeveloperCommandRequest,
+  ) => Promise<SubmitDeveloperCommandResponse>;
   readonly queryOptions: (
     request: QueryOptionsRequest<Query>,
   ) => Promise<QueryOptionsResponse<Answer>>;

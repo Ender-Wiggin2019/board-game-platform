@@ -60,9 +60,34 @@ function makeHost(
     SequentialTurnSetup
   >[] = [],
   storageOptions: StorageOptions = {},
+  developerConsole = false,
 ): DevelopmentHost {
   const module = {
     ...sequentialTurnFixture,
+    ...(developerConsole
+      ? {
+          developerConsole: {
+            commands: [
+              {
+                name: 'set-target',
+                label: 'Set target',
+                inputSchema: {
+                  name: 'fixture.developer.target',
+                  version: 1,
+                  schema: { type: 'integer', minimum: 1, maximum: 10 },
+                },
+                execute: (state, command) => ({
+                  ok: true,
+                  state: { ...state, target: Number(command.input) },
+                  events: [],
+                }),
+              },
+            ],
+          } satisfies NonNullable<
+            typeof sequentialTurnFixture.developerConsole
+          >,
+        }
+      : {}),
     turn: () => null,
     schemas: { ...sequentialTurnFixture.schemas, query: replaySchema },
     rules: {
@@ -178,6 +203,93 @@ afterEach(async () => {
 });
 
 describe('memory development host', () => {
+  it('runs operator commands through the Host with admin-only access and retry receipts', async () => {
+    const host = makeHost([], {}, true);
+    hosts.push(host);
+    const baseURL = await host.start();
+    const player1 = await select(baseURL, 'player1');
+    const player2 = await select(baseURL, 'player2');
+    const admin = await select(baseURL, 'admin');
+    const created = await request(baseURL, '/v1/rooms', {
+      method: 'POST',
+      headers: jsonHeaders(player1),
+      body: JSON.stringify({ setup: { target: 2 } }),
+    });
+    const room = created.body.room;
+    const joined = await request(baseURL, `/v1/rooms/${room.id}/join`, {
+      method: 'POST',
+      headers: jsonHeaders(player2),
+      body: JSON.stringify({ expectedRevision: room.revision }),
+    });
+    const ready1 = await request(baseURL, `/v1/rooms/${room.id}/ready`, {
+      method: 'POST',
+      headers: jsonHeaders(player1),
+      body: JSON.stringify({
+        expectedRevision: joined.body.revision,
+        ready: true,
+      }),
+    });
+    const ready2 = await request(baseURL, `/v1/rooms/${room.id}/ready`, {
+      method: 'POST',
+      headers: jsonHeaders(player2),
+      body: JSON.stringify({
+        expectedRevision: ready1.body.revision,
+        ready: true,
+      }),
+    });
+    const started = await request(baseURL, `/v1/rooms/${room.id}/start`, {
+      method: 'POST',
+      headers: jsonHeaders(player1),
+      body: JSON.stringify({
+        expectedRevision: ready2.body.revision,
+        requestId: 'start-console',
+      }),
+    });
+    const path = `/v1/sessions/${started.body.start.sessionId}/developer-console`;
+    const denied = await request(baseURL, path, {
+      headers: jsonHeaders(player1),
+    });
+    expect(denied.response.status).toBe(403);
+    const catalog = await request(baseURL, path, {
+      headers: jsonHeaders(admin),
+    });
+    expect(catalog.response.status).toBe(200);
+    expect(catalog.body.catalog[0].name).toBe('set-target');
+    const mutation = {
+      commandId: 'operator-1',
+      expectedRevision: catalog.body.revision,
+      command: { name: 'set-target', input: 5 },
+    };
+    const playerAttempt = await request(baseURL, `${path}/commands`, {
+      method: 'POST',
+      headers: jsonHeaders(player1),
+      body: JSON.stringify(mutation),
+    });
+    expect(playerAttempt.response.status).toBe(403);
+    const submit = () =>
+      request(baseURL, `${path}/commands`, {
+        method: 'POST',
+        headers: jsonHeaders(admin),
+        body: JSON.stringify(mutation),
+      });
+    const first = await submit();
+    const retry = await submit();
+    expect(first.body.receipt.status).toBe('accepted');
+    expect(retry.body.receipt.status).toBe('duplicate');
+    expect(retry.body.revision).toBe(first.body.revision);
+    const view = await request(
+      baseURL,
+      `/v1/sessions/${started.body.start.sessionId}/view`,
+      {
+        headers: jsonHeaders(player1),
+      },
+    );
+    expect(view.body.payload.target).toBe(5);
+    await select(baseURL, 'admin');
+    const revoked = await submit();
+    expect(revoked.response.status).toBe(401);
+  });
+
   it('rejects production and PostgreSQL profiles without an explicit database', () => {
     expect(() =>
       createDevelopmentHost({

@@ -89,3 +89,40 @@ Write game selectors normally and consume the supplied theme tokens:
   border-color: var(--game-palette-accent, currentColor);
 }
 ```
+
+## Developer console plugin
+
+Games register operator commands on `GameModule.developerConsole` with
+`defineDeveloperConsole` from `@board-game/sdk`. Each command supplies a name,
+label, JSON input schema and an `execute` function returning the ordinary game
+transition. `isModeEnabled` can disable the plugin for competitive or challenge
+modes. Game adapters own resource rules, public audit events and replay updates;
+the SDK does not interpret game-specific command strings.
+
+The Host validates the schema, checks the current revision and commits state,
+events and an idempotent command receipt in one transaction. Developer commands
+use a dedicated `developer-console` operation with both `session:admin` and
+`session:developer` scopes. Platform identity rechecks the authenticated account,
+authorization epoch and active pinned session; `console.use` is required in
+addition to administrator game-modification access. These scopes are never
+granted to players or background schedulers.
+
+Clients use the injected `GameClientRuntime.developerConsole` transport and
+`DeveloperConsoleSession` from `@board-game/client`. The session retains the
+original command id, revision and payload after an uncertain network outcome;
+retry that request until its receipt is known. A definitive stale-revision
+refusal permits refreshing the catalog and submitting a new command. Reset the
+client console when the account or pinned session changes.
+
+`GameDeveloperConsole` from `@board-game/components` supplies the release-scoped
+panel, command input, history recall, presets and busy state. Games supply parsing,
+localized labels and output. Its styles are included in the public `layout.css`
+export. The local development Host exposes the same catalog/command endpoints
+under `/v1/sessions/:id/developer-console` for its administrator account; the
+platform exposes them under `/platform/sessions/:id/developer-console`.
+
+Brass implements `player-stat` for money, income, whisky and score, with `set`,
+`add` and `remove` operations. It clears old undo checkpoints and records public
+repair frames; ranked modes and daily challenges disable mutations. SETI wraps
+its engine-validated commands in the same plugin while retaining its existing
+command parser and mode policy.

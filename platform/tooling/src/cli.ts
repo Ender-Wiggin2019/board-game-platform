@@ -525,7 +525,7 @@ async function runGameVerifyExport(
       });
       browser = await verifyDevelopmentBrowser({
         baseURL: nativeClient.baseURL,
-        gameId: result.gameId,
+        gameId: started.definition.manifest.gameId,
       });
     }
   } finally {

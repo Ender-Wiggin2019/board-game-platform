@@ -6,13 +6,17 @@ import type {
   GameViewer,
 } from '@board-game/client';
 import {
+  createDeveloperConsoleRuntime,
   createPlayerSessionTransport,
   type PlayerConnection,
 } from '@board-game/client';
 import type { SessionRoute } from '@board-game/contracts';
 import { httpClient } from './api/httpClient.js';
 import { platformSocket } from './api/platformSocket.js';
-import { createPlatformSessionTransport } from './PlatformSessionTransport.js';
+import {
+  createPlatformSessionTransport,
+  normalizePlatformRequestError,
+} from './PlatformSessionTransport.js';
 import { useAuthStore } from './stores/authStore.js';
 
 export type {
@@ -129,6 +133,12 @@ export function createBrowserPlatformRuntime(
         );
   return {
     http,
+    developerConsole: createDeveloperConsoleRuntime(
+      http,
+      (route) =>
+        `/platform/sessions/${encodeURIComponent(route.sessionId)}/developer-console`,
+      normalizePlatformRequestError,
+    ),
     signals,
     session: {
       signals,

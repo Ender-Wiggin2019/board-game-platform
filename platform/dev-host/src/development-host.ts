@@ -579,6 +579,16 @@ class DevelopmentHostImpl<
         this.accountsState.access(account.principalId, []).authEpoch
       )
         throw contractError('UNAUTHENTICATED', 'dev-host.auth.epoch');
+      if (operation === 'developer-console') {
+        if (
+          account.role !== 'admin' ||
+          context.scopes.length !== 2 ||
+          !context.scopes.includes('session:admin') ||
+          !context.scopes.includes('session:developer')
+        )
+          throw contractError('FORBIDDEN', 'dev-host.developer.denied');
+        return;
+      }
       const scope =
         operation === 'create' || operation === 'activate'
           ? 'session:create'
@@ -1070,6 +1080,67 @@ class DevelopmentHostImpl<
           ? { seatId: identity.seatId }
           : {}),
     };
+    if (tail[0] === 'developer-console') {
+      if (identity.account.role !== 'admin')
+        throw contractError('FORBIDDEN', 'dev-host.developer.denied');
+      const admission = await this.admission.getAdmission(sessionId);
+      if (!admission)
+        throw contractError('NOT_FOUND', 'dev-host.session.notFound');
+      const operatorRequest = {
+        protocolVersion: 1 as const,
+        route: admission.route,
+        accessContext: this.accountsState.access(identity.principalId, [
+          'session:admin',
+          'session:developer',
+        ]),
+      };
+      if (method === 'GET' && tail.length === 1) {
+        if (!this.runner.backend.getDeveloperConsole)
+          throw contractError('NOT_READY', 'dev-host.developer.unavailable');
+        return this.runner.backend.getDeveloperConsole(operatorRequest);
+      }
+      if (method === 'POST' && tail.length === 2 && tail[1] === 'commands') {
+        if (!this.runner.backend.submitDeveloperCommand)
+          throw contractError('NOT_READY', 'dev-host.developer.unavailable');
+        const body = requireRecord(
+          await readJson(request),
+          'dev-host.developer.body',
+        );
+        if (
+          Object.keys(body).some(
+            (key) =>
+              !['commandId', 'expectedRevision', 'command'].includes(key),
+          )
+        )
+          throw contractError('INVALID_REQUEST', 'dev-host.developer.body');
+        const command = requireRecord(
+          body.command,
+          'dev-host.developer.command',
+        );
+        if (
+          Object.keys(command).some((key) => !['name', 'input'].includes(key))
+        )
+          throw contractError('INVALID_REQUEST', 'dev-host.developer.command');
+        const result = await this.runner.backend.submitDeveloperCommand({
+          ...operatorRequest,
+          commandId: requireString(
+            body.commandId,
+            'dev-host.developer.commandId',
+          ),
+          expectedRevision: requireInteger(
+            body.expectedRevision,
+            'dev-host.developer.revision',
+          ),
+          command: {
+            name: requireString(command.name, 'dev-host.developer.name'),
+            input: jsonValue(command.input, 'dev-host.developer.input'),
+          },
+        });
+        await this.runner.recoverOnce();
+        return result;
+      }
+      throw contractError('NOT_FOUND', 'dev-host.developer.routeNotFound');
+    }
     if (method === 'GET' && tail[0] === 'view')
       return this.sessionGateway.view(reference, sessionId);
     if (method === 'GET' && tail[0] === 'summary')

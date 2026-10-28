@@ -30,7 +30,10 @@
     "@board-game/server": "workspace:*",
     "@board-game/tooling": "workspace:*",
     "@board-platform/dev-host": "workspace:*",
+    "@tailwindcss/postcss": "^4.1.15",
     "playwright": "^1.59.1",
+    "postcss": "8.5.28",
+    "tailwindcss": "^4.1.15",
     "vite": "^7.3.5"
   },
   "devDependencies": {

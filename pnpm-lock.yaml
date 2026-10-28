@@ -785,9 +785,18 @@ importers:
       '@board-platform/dev-host':
         specifier: workspace:*
         version: link:../dev-host
+      '@tailwindcss/postcss':
+        specifier: ^4.1.15
+        version: 4.2.4
       playwright:
         specifier: ^1.59.1
         version: 1.59.1
+      postcss:
+        specifier: 8.5.28
+        version: 8.5.28
+      tailwindcss:
+        specifier: ^4.1.15
+        version: 4.2.4
       vite:
         specifier: ^7.3.5
         version: 7.3.6(@types/node@22.19.17)(jiti@2.6.1)(lightningcss@1.32.0)(sass@1.99.0)(terser@5.48.0)(tsx@4.23.15)

@@ -184,6 +184,12 @@ function generatedDescription(
     setupSchema: module.schemas.setup,
     ...(replay ? { replay } : {}),
     ...(commands && commands.length > 0 ? { commands } : {}),
+    ...(services.dailyChallenge
+      ? { dailyChallenge: services.dailyChallenge.description }
+      : {}),
+    ...(services.statistics
+      ? { statistics: services.statistics.description }
+      : {}),
   };
   assertGameServiceDescription(description);
   return description;

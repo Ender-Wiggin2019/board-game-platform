@@ -1,3 +1,8 @@
+import {
+  type DeveloperCommand,
+  type DeveloperConsoleCatalogRequest,
+  type SubmitDeveloperCommandRequest,
+} from './developer-console.js';
 import { PlatformError } from './errors.js';
 import {
   assertJsonPayloadSize,
@@ -372,6 +377,66 @@ export function assertSubmitSystemCommandRequest<
     request.command,
     limits.commandBytes ?? DEFAULT_JSON_LIMITS.commandBytes,
     'systemCommand',
+  );
+}
+
+export function assertDeveloperCommand(
+  value: unknown,
+): asserts value is DeveloperCommand {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    fail('contracts.validation.invalidDeveloperCommand');
+  const command = value as Partial<DeveloperCommand> & Record<string, unknown>;
+  requireExactKeys(
+    command,
+    ['name', 'input'],
+    'contracts.validation.invalidDeveloperCommand',
+  );
+  requireNonEmptyString(command.name, 'developerCommand.name');
+  if (command.name.length > 128)
+    fail('contracts.validation.invalidDeveloperCommand');
+  if (!isJsonValue(command.input))
+    fail('contracts.validation.invalidDeveloperCommand');
+}
+
+export function assertDeveloperConsoleCatalogRequest(
+  request: DeveloperConsoleCatalogRequest,
+): void {
+  assertProtocolRequest(request);
+  assertAccessContext(request.accessContext);
+  assertSessionRoute(request.route);
+}
+
+export function assertSubmitDeveloperCommandRequest(
+  request: SubmitDeveloperCommandRequest,
+  limits: ValidationLimits = {},
+): void {
+  assertProtocolRequest(request);
+  requireExactKeys(
+    request as unknown as object,
+    [
+      'protocolVersion',
+      'accessContext',
+      'route',
+      'commandId',
+      'expectedRevision',
+      'command',
+    ],
+    'contracts.validation.invalidDeveloperCommandRequest',
+  );
+  assertAccessContext(request.accessContext);
+  assertSessionRoute(request.route);
+  requireNonEmptyString(request.commandId, 'commandId');
+  if (
+    typeof request.expectedRevision !== 'number' ||
+    !Number.isSafeInteger(request.expectedRevision) ||
+    request.expectedRevision < 0
+  )
+    fail('contracts.validation.invalidExpectedRevision');
+  assertDeveloperCommand(request.command);
+  assertJsonPayloadSize(
+    request.command,
+    limits.commandBytes ?? DEFAULT_JSON_LIMITS.commandBytes,
+    'developerCommand',
   );
 }
 

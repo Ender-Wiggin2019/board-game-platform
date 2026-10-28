@@ -2,6 +2,7 @@ export * from './catalog.js';
 export * from './client-artifacts.js';
 export * from './completion.js';
 export * from './daily.js';
+export * from './developer-console.js';
 export * from './errors.js';
 export * from './json.js';
 export * from './platform.js';

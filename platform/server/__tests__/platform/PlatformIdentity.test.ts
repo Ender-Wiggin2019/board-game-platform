@@ -481,6 +481,75 @@ describe('generic platform identity', () => {
     ).rejects.toMatchObject({ envelope: { code: 'FORBIDDEN' } });
   });
 
+  it('separates developer access from player, control and scheduler authority', async () => {
+    const fixture = setup();
+    const account = fixture.accounts.get('alice');
+    if (!account) throw new Error('account fixture missing');
+    const reference = { principalId: 'alice', authSessionId: 'auth-alice' };
+    await expect(
+      fixture.identity.developerAccess(reference, brassRoute),
+    ).rejects.toMatchObject({ envelope: { code: 'FORBIDDEN' } });
+    account.role = 'admin';
+    const access = await fixture.identity.developerAccess(
+      reference,
+      brassRoute,
+    );
+    expect(access.scopes).toEqual(['session:admin', 'session:developer']);
+    await expect(
+      fixture.identity.authorizeHost(access, 'developer-console', brassRoute),
+    ).resolves.toBeUndefined();
+    await expect(
+      fixture.identity.authorizeHost(access, 'system', brassRoute),
+    ).rejects.toMatchObject({ envelope: { code: 'FORBIDDEN' } });
+    const control = await fixture.identity.adminAccess(reference, brassRoute);
+    await expect(
+      fixture.identity.authorizeHost(control, 'developer-console', brassRoute),
+    ).rejects.toMatchObject({ envelope: { code: 'FORBIDDEN' } });
+    const scheduler = await fixture.identity.systemAccess(brassRoute);
+    await expect(
+      fixture.identity.authorizeHost(
+        scheduler,
+        'developer-console',
+        brassRoute,
+      ),
+    ).rejects.toMatchObject({ envelope: { code: 'FORBIDDEN' } });
+    account.role = 'player';
+    await expect(
+      fixture.identity.authorizeHost(access, 'developer-console', brassRoute),
+    ).rejects.toMatchObject({ envelope: { code: 'FORBIDDEN' } });
+    account.role = 'admin';
+    account.permissionVersion += 1;
+    await expect(
+      fixture.identity.authorizeHost(access, 'developer-console', brassRoute),
+    ).rejects.toMatchObject({ envelope: { code: 'FORBIDDEN' } });
+  });
+
+  it('does not allow game hooks to grant developer access to a player', async () => {
+    const fixture = setup();
+    const hook = vi.fn(async () => 'allow' as const);
+    const identity = new PlatformIdentity(fixture.db, fixture.store, 'brass', {
+      authorizeHost: hook,
+    });
+    const resolved = await identity.resolve({
+      principalId: 'alice',
+      authSessionId: 'auth-alice',
+    });
+    await expect(
+      identity.authorizeHost(
+        {
+          principalId: resolved.principalId,
+          authEpoch: resolved.authEpoch,
+          scopes: ['session:view', 'session:developer'],
+        },
+        'developer-console',
+        brassRoute,
+      ),
+    ).rejects.toMatchObject({
+      envelope: { code: 'FORBIDDEN' },
+    });
+    expect(hook).not.toHaveBeenCalled();
+  });
+
   it('accepts only a matching request-scoped identity context', async () => {
     const fixture = setup();
     const resolved = await fixture.identity.resolve({

@@ -13,6 +13,8 @@ export enum ECapability {
   GAME_INSPECT_ANY = 'game.inspect.any',
   /** Mutate any registered game through platform maintenance operations. */
   GAME_MODIFY_ANY = 'game.modify.any',
+  /** Use a game's installed developer tools through an authorized operator route. */
+  CONSOLE_USE = 'console.use',
   /** Destructive maintenance such as history rollback or truncation. */
   GAME_ROLLBACK = 'game.rollback',
   ADMIN_ACCESS = 'admin.access',
@@ -51,6 +53,7 @@ export const ROLE_CAPABILITIES: Record<ERole, readonly ECapability[]> = {
     ECapability.ADMIN_ACCESS,
     ECapability.GAME_INSPECT_ANY,
     ECapability.GAME_MODIFY_ANY,
+    ECapability.CONSOLE_USE,
     ECapability.GAME_ROLLBACK,
     ECapability.USER_MANAGE,
     ECapability.MESSAGE_PUBLISH,

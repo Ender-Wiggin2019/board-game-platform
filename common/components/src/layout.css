@@ -401,3 +401,269 @@
 .bgp-isolated-game__frame[hidden] {
   display: none;
 }
+
+.bgp-game-developer-console {
+  --bgp-dev-console-edge: var(
+    --metal-edge,
+    color-mix(in srgb, CanvasText 24%, transparent)
+  );
+  --bgp-dev-console-edge-soft: var(
+    --metal-edge-soft,
+    color-mix(in srgb, CanvasText 14%, transparent)
+  );
+  --bgp-dev-console-surface: var(
+    --surface-instrument,
+    color-mix(in srgb, CanvasText 12%, Canvas)
+  );
+  --bgp-dev-console-text: var(--text-100, CanvasText);
+  --bgp-dev-console-muted: var(
+    --text-400,
+    color-mix(in srgb, CanvasText 68%, Canvas)
+  );
+  --bgp-dev-console-faint: var(
+    --text-500,
+    color-mix(in srgb, CanvasText 48%, Canvas)
+  );
+  --bgp-dev-console-accent: var(--signal-blue-hi, #6fd3ff);
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1050;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 12rem;
+  max-height: min(55dvh, 36rem);
+  overflow: hidden;
+  color: var(--bgp-dev-console-text);
+  background: color-mix(
+    in srgb,
+    var(--bgp-dev-console-surface) 97%,
+    transparent
+  );
+  border: 1px solid var(--bgp-dev-console-edge);
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  box-shadow: 0 -0.75rem 2rem color-mix(in srgb, CanvasText 20%, transparent);
+  backdrop-filter: blur(0.75rem);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
+}
+
+.bgp-game-developer-console[data-embedded] {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  z-index: auto;
+  width: 100%;
+  min-height: min(420px, 70dvh);
+  max-height: min(70dvh, 36rem);
+  border: 1px solid var(--bgp-dev-console-edge);
+  border-radius: 0.375rem;
+  box-shadow: none;
+}
+
+.bgp-game-developer-console__header,
+.bgp-game-developer-console__input-row {
+  flex: 0 0 auto;
+  border-color: var(--bgp-dev-console-edge-soft);
+}
+
+.bgp-game-developer-console__header {
+  display: flex;
+  min-width: 0;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.375rem 0.75rem;
+  border-bottom: 1px solid var(--bgp-dev-console-edge-soft);
+  color: var(--bgp-dev-console-muted);
+  font-size: 0.625rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.bgp-game-developer-console__title,
+.bgp-game-developer-console__target {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bgp-game-developer-console__title {
+  flex: 0 0 auto;
+}
+
+.bgp-game-developer-console__target {
+  flex: 1 1 auto;
+  color: var(--bgp-dev-console-faint);
+  text-align: right;
+}
+
+.bgp-game-developer-console__close {
+  flex: 0 0 auto;
+  margin-left: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  color: var(--bgp-dev-console-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: normal;
+}
+
+.bgp-game-developer-console__close:hover {
+  color: var(--bgp-dev-console-text);
+}
+
+.bgp-game-developer-console__log {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: min(38dvh, 24rem);
+  padding: 0.5rem 0.75rem;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  overscroll-behavior: contain;
+}
+
+.bgp-game-developer-console__line {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.35;
+}
+
+.bgp-game-developer-console__line--input {
+  color: var(--bgp-dev-console-accent);
+}
+
+.bgp-game-developer-console__line--output {
+  color: var(--bgp-dev-console-text);
+}
+
+.bgp-game-developer-console__line--error {
+  color: var(--signal-red-hi, oklch(0.72 0.18 25));
+}
+
+.bgp-game-developer-console__line--info {
+  color: var(--bgp-dev-console-muted);
+}
+
+.bgp-game-developer-console__presets {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--bgp-dev-console-edge-soft);
+}
+
+.bgp-game-developer-console__preset-label {
+  margin-right: 0.25rem;
+  color: var(--bgp-dev-console-faint);
+  font-size: 0.625rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.bgp-game-developer-console__preset {
+  min-height: 1.75rem;
+  padding: 0.25rem 0.5rem;
+  color: var(--bgp-dev-console-muted);
+  background: transparent;
+  border: 1px solid var(--bgp-dev-console-edge-soft);
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.6875rem;
+  text-align: left;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.bgp-game-developer-console__preset:hover:not(:disabled),
+.bgp-game-developer-console__preset:focus-visible {
+  color: var(--bgp-dev-console-text);
+  background: color-mix(
+    in srgb,
+    var(--bgp-dev-console-surface) 92%,
+    transparent
+  );
+  border-color: var(--bgp-dev-console-edge);
+}
+
+.bgp-game-developer-console__preset:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.bgp-game-developer-console__preset code {
+  margin-left: 0.375rem;
+  color: var(--bgp-dev-console-accent);
+  font: inherit;
+}
+
+.bgp-game-developer-console__input-row {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.5rem;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--bgp-dev-console-edge-soft);
+}
+
+.bgp-game-developer-console__prompt {
+  flex: 0 0 auto;
+  color: var(--bgp-dev-console-accent);
+  font-size: 0.875rem;
+}
+
+.bgp-game-developer-console__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  color: var(--bgp-dev-console-text);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font: inherit;
+}
+
+.bgp-game-developer-console__input::placeholder {
+  color: var(--bgp-dev-console-faint);
+}
+
+.bgp-game-developer-console__input:focus-visible {
+  outline: 1px solid var(--bgp-dev-console-accent);
+  outline-offset: 0.25rem;
+}
+
+.bgp-game-developer-console[data-state="busy"]
+  .bgp-game-developer-console__input {
+  opacity: 0.8;
+}
+
+@media (max-width: 48rem) {
+  .bgp-game-developer-console {
+    max-height: min(70dvh, 36rem);
+  }
+
+  .bgp-game-developer-console__header {
+    gap: 0.5rem;
+  }
+
+  .bgp-game-developer-console__target {
+    text-align: left;
+  }
+
+  .bgp-game-developer-console__preset {
+    max-width: 100%;
+  }
+}

@@ -1,8 +1,9 @@
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 export interface NativeDevelopmentClientOptions {
   readonly gameClientEntry: string;
@@ -46,6 +47,46 @@ function packageDirectoryFor(packageRoot: string, packageName: string): string {
   throw new Error(`Package ${packageName} is not installed for ${packageRoot}`);
 }
 
+function packageExportEntry(
+  packageRoot: string,
+  exportName: string,
+): string | undefined {
+  const manifest = JSON.parse(
+    readFileSync(join(packageRoot, 'package.json'), 'utf8'),
+  ) as { exports?: Record<string, unknown> | string };
+  const exportValue =
+    typeof manifest.exports === 'object' && manifest.exports !== null
+      ? manifest.exports[exportName]
+      : exportName === '.'
+        ? manifest.exports
+        : undefined;
+  const target =
+    typeof exportValue === 'string'
+      ? exportValue
+      : exportValue &&
+          typeof exportValue === 'object' &&
+          !Array.isArray(exportValue) &&
+          typeof (exportValue as { import?: unknown }).import === 'string'
+        ? (exportValue as { import: string }).import
+        : undefined;
+  if (!target) return undefined;
+  if (!target.startsWith('./'))
+    throw new Error(
+      `Package export ${exportName} must stay inside the package`,
+    );
+  const targetPath = resolve(packageRoot, target.slice(2));
+  const escaped = relative(packageRoot, targetPath);
+  if (
+    escaped === '..' ||
+    escaped.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`) ||
+    isAbsolute(escaped)
+  )
+    throw new Error(
+      `Package export ${exportName} must stay inside the package`,
+    );
+  return targetPath;
+}
+
 function packageImportEntry(packageRoot: string, packageName: string): string {
   const directory = packageDirectoryFor(packageRoot, packageName);
   const manifest = JSON.parse(
@@ -66,8 +107,49 @@ function packageImportEntry(packageRoot: string, packageName: string): string {
   return join(directory, entry);
 }
 
+async function declaredPublicDirectories(
+  clientRoot: string,
+): Promise<readonly string[]> {
+  const fallback = [
+    join(clientRoot, 'dist', 'public'),
+    join(clientRoot, 'public'),
+  ];
+  const assetsEntry = packageExportEntry(clientRoot, './assets');
+  if (!assetsEntry) return fallback;
+  const namespace = (await import(pathToFileURL(assetsEntry).href)) as {
+    readonly gameClientAssets?: {
+      readonly publicDirectories?: readonly unknown[];
+    };
+  };
+  const configured = namespace.gameClientAssets?.publicDirectories;
+  if (
+    !Array.isArray(configured) ||
+    configured.some((directory) => typeof directory !== 'string')
+  )
+    throw new Error('Client assets declaration must expose publicDirectories');
+  return configured.map((directory) => resolve(clientRoot, directory));
+}
+
+async function copyPublicDirectories(
+  publicDirectories: readonly string[],
+  destination: string,
+): Promise<void> {
+  await mkdir(destination, { recursive: true });
+  for (const publicDirectory of publicDirectories) {
+    try {
+      const info = await stat(publicDirectory);
+      if (!info.isDirectory()) continue;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      throw error;
+    }
+    await cp(publicDirectory, destination, { recursive: true, force: true });
+  }
+}
+
 function shellSource(): string {
   return `
+import './styles.css';
 const React = await import('react');
 const ReactDOM = await import('react-dom/client');
 const clientModule = await import('__BGP_GAME_CLIENT__');
@@ -75,6 +157,7 @@ const state = { account: null, token: null, metadata: null, room: null, session:
 const byId = (id) => document.getElementById(id);
 const output = byId('output');
 const gameRoot = byId('game-root');
+const reactRoot = ReactDOM.createRoot(gameRoot);
 const accountSelect = byId('account');
 const scenarioSelect = byId('scenario');
 const modeSelect = byId('mode');
@@ -91,7 +174,7 @@ async function api(path, init = {}) {
   if (state.token) headers.authorization = 'Bearer ' + state.token;
   const response = await fetch(path, { ...init, headers });
   const value = await response.json();
-  if (!response.ok) throw new Error(value.error?.messageKey || 'HTTP ' + response.status);
+  if (!response.ok) throw Object.assign(new Error(value.error?.messageKey || value.messageKey || 'HTTP ' + response.status), { code: value.error?.code || value.code });
   return value;
 }
 
@@ -105,6 +188,7 @@ async function selectAccount() {
   state.token = selected.token;
   status.textContent = selected.account.displayName + ' · authenticated';
   await refreshRooms();
+  if (state.route) await renderGame();
 }
 
 async function refreshRooms() {
@@ -163,6 +247,8 @@ async function createRuntime() {
   });
   return {
     http,
+    developerConsole: transportModule.createDeveloperConsoleRuntime(http,
+      (route) => '/v1/sessions/' + encodeURIComponent(route.sessionId) + '/developer-console'),
     session: {
       signals: { subscribeRevision: () => () => {}, setForeground: () => {}, isConnected: true },
       createTransport: transport,
@@ -184,7 +270,8 @@ async function renderGame() {
   if (!definition?.entry?.loadLive) throw new Error('Client export does not provide entry.loadLive');
   const loaded = await definition.entry.loadLive();
   const Component = loaded.default;
-  ReactDOM.createRoot(gameRoot).render(React.createElement(Component, {
+  reactRoot.render(React.createElement(Component, {
+    key: state.route.sessionId + ':' + state.account?.principalId,
     route: state.route,
     status: 'active',
     spectate: false,
@@ -232,7 +319,57 @@ boot().catch((error) => show(error.message));
 }
 
 function shellHtml(): string {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>bgp dev</title><style>body{font:14px system-ui;margin:0;background:#10151b;color:#e8edf2}main{max-width:1200px;margin:auto;padding:20px}button,select,input,textarea{font:inherit;margin:.25rem;padding:.4rem;background:#1d2833;color:inherit;border:1px solid #435463;border-radius:4px}textarea{width:20rem;height:3rem;vertical-align:top}pre{background:#0a0e12;padding:10px;white-space:pre-wrap;min-height:4rem}.grid{display:grid;grid-template-columns:25rem 1fr;gap:20px}#game-root{min-height:30rem}[data-game-release]{min-height:30rem}</style></head><body><main><h1 id="title">bgp dev</h1><p id="status">Connecting…</p><section><label>Account <select id="account"></select></label><label>Mode <select id="mode"></select></label><label>Scene <select id="scenario"><option value="">none</option></select></label></section><section><label>Setup <textarea id="setup">{}</textarea></label><button id="create">Create room</button><input id="room-id" placeholder="room id"><button id="join">Join</button><button id="ready">Ready</button><button id="start">Start</button></section><div class="grid"><pre id="rooms">No rooms</pre><section id="game-root"><p>Start a room to load the native game client.</p></section></div><pre id="output"></pre></main><script type="module" src="/src/main.js"></script></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>bgp dev</title><style>body{font:14px system-ui;margin:0;background:#10151b;color:#e8edf2}main{max-width:1200px;margin:auto;padding:20px;min-width:0}button,select,input,textarea{font:inherit;margin:.25rem;padding:.4rem;background:#1d2833;color:inherit;border:1px solid #435463;border-radius:4px}textarea{width:20rem;height:3rem;vertical-align:top}pre{background:#0a0e12;padding:10px;white-space:pre-wrap;min-height:4rem;min-width:0;max-width:100%;overflow:auto;overflow-wrap:anywhere;word-break:break-word}.grid{display:grid;grid-template-columns:minmax(0,25rem) minmax(0,1fr);gap:20px}.grid>*{min-width:0}#game-root{min-width:0;min-height:30rem}[data-game-release]{min-height:30rem}@media(max-width:800px){main{padding:12px}.grid{grid-template-columns:minmax(0,1fr)}textarea{max-width:100%}}</style></head><body><main><h1 id="title">bgp dev</h1><p id="status">Connecting…</p><section><label>Account <select id="account"></select></label><label>Mode <select id="mode"></select></label><label>Scene <select id="scenario"><option value="">none</option></select></label></section><section><label>Setup <textarea id="setup">{}</textarea></label><button id="create">Create room</button><input id="room-id" placeholder="room id"><button id="join">Join</button><button id="ready">Ready</button><button id="start">Start</button></section><div class="grid"><pre id="rooms">No rooms</pre><section id="game-root"><p>Start a room to load the native game client.</p></section></div><pre id="output"></pre></main><script type="module" src="/src/main.js"></script></body></html>`;
+}
+
+interface NativeClientStyles {
+  readonly platformRoot?: string;
+  readonly postcssPlugin: unknown;
+}
+
+async function configureNativeClientStyles(
+  clientRoot: string,
+  directory: string,
+): Promise<NativeClientStyles> {
+  const clientRequire = createRequire(join(clientRoot, 'package.json'));
+  let globalsEntry: string | undefined;
+  try {
+    globalsEntry = clientRequire.resolve(
+      '@board-platform/client/styles/globals.css',
+    );
+  } catch (error) {
+    // Games that consume only the core SDK do not need platform theme styles.
+    if ((error as NodeJS.ErrnoException).code !== 'MODULE_NOT_FOUND')
+      throw error;
+  }
+  const platformRoot = globalsEntry
+    ? packageRootForFile(globalsEntry)
+    : undefined;
+  const configEntry = platformRoot
+    ? createRequire(join(platformRoot, 'package.json')).resolve(
+        '@board-platform/client/styles/tailwind.config.js',
+      )
+    : undefined;
+  const toolingRequire = createRequire(import.meta.url);
+  const tailwindEntry = toolingRequire.resolve('tailwindcss/index.css');
+  const tailwindPluginEntry = toolingRequire.resolve('@tailwindcss/postcss');
+  const tailwindModule = (await import(
+    pathToFileURL(tailwindPluginEntry).href
+  )) as { readonly default?: () => unknown };
+  if (typeof tailwindModule.default !== 'function')
+    throw new Error('@tailwindcss/postcss does not expose a plugin');
+  const source = [
+    `@import ${JSON.stringify(tailwindEntry)};`,
+    ...(globalsEntry ? [`@import ${JSON.stringify(globalsEntry)};`] : []),
+    ...(configEntry ? [`@config ${JSON.stringify(configEntry)};`] : []),
+    `@source ${JSON.stringify(join(clientRoot, 'dist'))};`,
+    ...(platformRoot
+      ? [`@source ${JSON.stringify(join(platformRoot, 'dist'))};`]
+      : []),
+    '',
+  ].join('\n');
+  await writeFile(join(directory, 'src', 'styles.css'), source);
+  return { platformRoot, postcssPlugin: tailwindModule.default() };
 }
 
 async function loadVite(clientEntry: string): Promise<ViteModule> {
@@ -265,6 +402,13 @@ export async function startNativeDevelopmentClient(
   await writeFile(join(directory, 'src', 'main.js'), shellSource());
   const vite = await loadVite(options.gameClientEntry);
   const clientRoot = packageRootForFile(options.gameClientEntry);
+  const styles = await configureNativeClientStyles(clientRoot, directory);
+  const canonicalDirectory = realpathSync(directory);
+  const publicDirectory = join(directory, 'public');
+  await copyPublicDirectories(
+    await declaredPublicDirectories(clientRoot),
+    publicDirectory,
+  );
   const clientRequire = createRequire(join(clientRoot, 'package.json'));
   const clientRuntimeEntry = packageImportEntry(
     clientRoot,
@@ -272,6 +416,7 @@ export async function startNativeDevelopmentClient(
   );
   const server = await vite.createServer({
     root: directory,
+    publicDir: publicDirectory,
     server: {
       host: '127.0.0.1',
       port: 0,
@@ -283,8 +428,17 @@ export async function startNativeDevelopmentClient(
           headers: { origin: options.hostURL },
         },
       },
-      fs: { allow: [directory, options.gameDirectory, clientRoot] },
+      fs: {
+        allow: [
+          directory,
+          canonicalDirectory,
+          options.gameDirectory,
+          clientRoot,
+          ...(styles.platformRoot ? [styles.platformRoot] : []),
+        ],
+      },
     },
+    css: { postcss: { plugins: [styles.postcssPlugin] } },
     resolve: {
       alias: [
         { find: '__BGP_GAME_CLIENT__', replacement: options.gameClientEntry },

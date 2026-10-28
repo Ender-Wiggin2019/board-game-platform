@@ -4,6 +4,7 @@ import {
   type JsonValue,
   PlatformError,
 } from '@board-game/contracts';
+import { defineDeveloperConsole } from './developer-console.js';
 import type { GameModule } from './types.js';
 
 const FORBIDDEN_RUNTIME_KEYS = new Set([
@@ -155,6 +156,8 @@ export function defineGame<
     assertSchemaDescriptor(module.schemas.query, 'schemas.query');
   if (module.schemas.result !== undefined)
     assertSchemaDescriptor(module.schemas.result, 'schemas.result');
+  if (module.developerConsole !== undefined)
+    defineDeveloperConsole(module.developerConsole);
   validateRules(module.rules);
   requireFunction(module.summarize, 'summarize');
   requireFunction(module.collectFacts, 'collectFacts');

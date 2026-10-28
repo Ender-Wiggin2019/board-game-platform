@@ -1,6 +1,7 @@
 export * from './automation.js';
 export * from './deck.js';
 export * from './define-game.js';
+export * from './developer-console.js';
 export * from './GameError.js';
 export * from './SeededRandom.js';
 export * from './session-controls.js';

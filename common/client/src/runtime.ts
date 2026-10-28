@@ -1,5 +1,6 @@
 import type { JsonValue, SessionRoute } from '@board-game/contracts';
 import type { ClientSessionTransport } from './ClientSessionStore.js';
+import type { GameDeveloperConsoleRuntime } from './DeveloperConsole.js';
 
 /** The host-provided HTTP surface available to game client adapters. */
 export interface GameHttpClient {
@@ -62,6 +63,8 @@ export interface GameSessionHost {
 
 /** Runtime capabilities injected by the application composition root. */
 export interface GameEntryRuntime {
+  /** Optional operator tools, authorized by the host independently of player input. */
+  readonly developerConsole?: GameDeveloperConsoleRuntime;
   /** Reports a contained event/async failure to the active game's error boundary. */
   readonly reportError?: (error: unknown) => void;
   /** Retained for game-owned platform extensions during migration. */
